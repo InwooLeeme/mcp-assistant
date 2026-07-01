@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+autogen-agentchat
+autogen-ext[openai,mcp]
+mcp
+pydantic
