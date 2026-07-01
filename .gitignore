@@ -1,0 +1,10 @@
+
+// docs
+docs/*
+
+// claude
+CLAUDE.local.md
+
+// client
+client/CLAUDE.md
+client/AGENTS.md
