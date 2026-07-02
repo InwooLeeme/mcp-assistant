@@ -14,12 +14,24 @@ export function ProgressLog({ stages }: ProgressLogProps) {
   if (stages.length === 0) return null;
 
   return (
-    <ul className="w-full space-y-1 text-sm text-gray-600">
-      {stages.map((stage, index) => (
-        <li key={`${stage.stage}-${index}`}>
-          <span className="font-medium">[{STAGE_LABEL[stage.stage]}]</span> {stage.message}
-        </li>
-      ))}
+    <ul className="mt-4 space-y-2.5 border-t border-border pt-4">
+      {stages.map((stage, index) => {
+        const isLast = index === stages.length - 1;
+        return (
+          <li
+            key={`${stage.stage}-${index}`}
+            className="flex items-center gap-2.5 text-sm animate-fade-in-up"
+          >
+            <span
+              className={`h-2 w-2 shrink-0 rounded-full ${
+                isLast ? "bg-accent animate-pulse" : "bg-muted/40"
+              }`}
+            />
+            <span className="font-medium text-foreground">{STAGE_LABEL[stage.stage]}</span>
+            <span className="text-muted">{stage.message}</span>
+          </li>
+        );
+      })}
     </ul>
   );
 }

@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
+import { Nanum_Myeongjo } from "next/font/google";
 import "./globals.css";
+
+const displaySerif = Nanum_Myeongjo({
+  subsets: ["latin"],
+  weight: ["400", "700", "800"],
+  variable: "--font-display",
+});
 
 export const metadata: Metadata = {
   title: "개인 텍스트 비서",
@@ -12,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko">
+    <html lang="ko" className={displaySerif.variable}>
       <body>{children}</body>
     </html>
   );

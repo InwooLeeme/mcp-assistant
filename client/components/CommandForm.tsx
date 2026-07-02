@@ -26,12 +26,12 @@ export function CommandForm({ onSubmit, disabled }: CommandFormProps) {
         onChange={(event) => setText(event.target.value)}
         placeholder="명령을 입력해 주세요"
         disabled={disabled}
-        className="flex-1 rounded-md border border-gray-300 px-4 py-2 text-base disabled:bg-gray-100"
+        className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-base text-foreground outline-none transition placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:opacity-60"
       />
       <button
         type="submit"
         disabled={disabled}
-        className="rounded-md bg-blue-600 px-5 py-2 text-white disabled:bg-gray-400"
+        className="rounded-xl bg-accent px-5 py-3 font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
         전송
       </button>

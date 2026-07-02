@@ -7,7 +7,14 @@ type ResultMessageProps = {
 
 export function ResultMessage({ result, error }: ResultMessageProps) {
   if (error) {
-    return <p className="w-full rounded-md bg-red-50 px-4 py-3 text-red-700">{error}</p>;
+    return (
+      <div className="mt-4 flex items-start gap-3 rounded-xl border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger animate-fade-in-up">
+        <span aria-hidden className="mt-px">
+          ⚠
+        </span>
+        <p>{error}</p>
+      </div>
+    );
   }
 
   if (!result) return null;
@@ -15,14 +22,17 @@ export function ResultMessage({ result, error }: ResultMessageProps) {
   const isSuccess = result.status === "success";
 
   return (
-    <p
-      className={
+    <div
+      className={`mt-4 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm animate-fade-in-up ${
         isSuccess
-          ? "w-full rounded-md bg-green-50 px-4 py-3 text-green-700"
-          : "w-full rounded-md bg-red-50 px-4 py-3 text-red-700"
-      }
+          ? "border-success-border bg-success-bg text-success"
+          : "border-danger-border bg-danger-bg text-danger"
+      }`}
     >
-      {result.message}
-    </p>
+      <span aria-hidden className="mt-px">
+        {isSuccess ? "✓" : "⚠"}
+      </span>
+      <p>{result.message}</p>
+    </div>
   );
 }
