@@ -3,6 +3,8 @@ from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 
+from media import control_media as _control_media
+from processes import close_program as _close_program
 from programs import launch_program as _launch_program
 from youtube import play_youtube as _play_youtube
 
@@ -13,6 +15,12 @@ mcp = FastMCP("MCP Assistant Server")
 def launch_program(program_name: str) -> dict:
     """설치된 프로그램을 이름으로 찾아 실행한다."""
     return _launch_program(program_name)
+
+
+@mcp.tool()
+def close_program(program_name: str) -> dict:
+    """실행 중인 프로그램을 이름으로 찾아 정상 종료(창 닫기)한다."""
+    return _close_program(program_name)
 
 
 @mcp.tool()
@@ -37,6 +45,14 @@ def open_url(url: str) -> dict:
         "url": url,
         "message": f"'{url}' 페이지를 열었습니다.",
     }
+
+
+@mcp.tool()
+def control_media(action: str) -> dict:
+    """미디어를 제어한다. action은 다음 중 하나:
+    play_pause(재생/일시정지), next(다음 곡), prev(이전 곡),
+    volume_up(볼륨 올리기), volume_down(볼륨 내리기), mute(음소거)."""
+    return _control_media(action)
 
 
 if __name__ == "__main__":
