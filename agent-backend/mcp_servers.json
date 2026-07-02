@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "local": {
+      "command": "c:\\workspace\\mcp-assistant\\mcp-server\\.venv\\Scripts\\python.exe",
+      "args": ["c:\\workspace\\mcp-assistant\\mcp-server\\server.py"]
+    }
+  }
+}
