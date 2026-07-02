@@ -11,7 +11,7 @@ from autogen_ext.tools.mcp import McpWorkbench
 
 from agents import Plan, build_executor_agent, build_planner_agent, build_user_proxy
 from llm_client import get_model_client
-from mcp_config import load_server_params
+import mcp_config
 from sse import result_event, stage_event
 
 logger = logging.getLogger("agent-backend")
@@ -44,8 +44,9 @@ async def run_command_pipeline(text: str) -> AsyncGenerator[dict, None]:
         async with AsyncExitStack() as stack:
             workbenches = []
             tools: list[dict] = []
-            for name, params in load_server_params().items():
+            for name, entry in mcp_config.list_servers().items():
                 try:
+                    params = mcp_config.to_server_params(entry)
                     workbench = await stack.enter_async_context(McpWorkbench(server_params=params))
                     server_tools = await workbench.list_tools()
                     workbenches.append(workbench)

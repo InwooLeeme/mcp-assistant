@@ -17,7 +17,7 @@
 - `pipeline.py` — SelectorGroupChat을 조립하고 실행하며 SSE 이벤트로 변환하는 오케스트레이션 로직.
 - `agents.py` — planner/executor/user_proxy 에이전트 정의, 프로그램 별칭 표(`PROGRAM_ALIASES`), URL 카테고리 힌트(`URL_CATEGORY_HINTS`), `Plan` 스키마.
 - `llm_client.py` — Gemini를 OpenAI 호환 API로 부르는 `OpenAIChatCompletionClient` 생성.
-- `mcp_tools.py` — MCP 서버를 stdio 서브프로세스로 띄우기 위한 `StdioServerParams` 생성.
+- `mcp_config.py` — `mcp_servers.json` 로딩·저장 및 서버 목록 조회·추가·삭제(`list_servers`, `add_server`, `remove_server`, `to_server_params`, `load_server_params`).
 - `sse.py` — SSE 이벤트 딕셔너리 생성 및 `data: ...\n\n` 포맷팅.
 - `config.py` — `.env` 로딩 및 환경변수 읽기.
 
@@ -28,9 +28,9 @@ GEMINI_API_KEY=              # 필수, Gemini API 키
 GEMINI_MODEL=gemini-2.0-flash
 AGENT_PORT=8000
 CORS_ALLOW_ORIGIN=http://localhost:3000
-MCP_SERVER_COMMAND=          # 필수, mcp-server를 실행할 python.exe 경로
-MCP_SERVER_ARGS=             # 필수, mcp-server/server.py 경로
 ```
+
+MCP 서버 목록은 `mcp_servers.json`에서 관리하며, 파이프라인이 요청마다 모든 서버에 연결해 도구를 합쳐 planner에 전달합니다. `GET/POST/DELETE /mcp-servers`로 목록 조회·추가·삭제할 수 있고, 한 서버가 연결에 실패해도 나머지로 계속 동작합니다.
 
 `GEMINI_MODEL`은 모델 등급에 따라 지시 이행 능력 차이가 꽤 큽니다. 가벼운 모델(`gemini-2.5-flash-lite` 등)은 `PROGRAM_ALIASES` 같은 프롬프트 안의 매핑 표를 놓치고 원문을 그대로 도구에 넘기는 경우가 있었습니다. 별칭 매칭이 잘 안 될 때는 429(할당량 초과) 에러인지, 아니면 응답 자체는 정상인데 모델이 지시를 놓친 것인지 구분해서 봐야 합니다.
 

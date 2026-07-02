@@ -32,12 +32,18 @@ flowchart LR
         LaunchProgram["launch_program"]
         OpenUrl["open_url"]
         PlayYoutube["play_youtube"]
+        ControlMedia["control_media"]
+        CloseProgram["close_program"]
+        OpenFolder["open_folder"]
     end
 
     Client -- "POST /command" --> API
     Executor -- "MCP 도구 호출" --> LaunchProgram
     Executor -- "MCP 도구 호출" --> OpenUrl
     Executor -- "MCP 도구 호출" --> PlayYoutube
+    Executor -- "MCP 도구 호출" --> ControlMedia
+    Executor -- "MCP 도구 호출" --> CloseProgram
+    Executor -- "MCP 도구 호출" --> OpenFolder
     API -. "SSE (stage/result)" .-> Client
 ```
 
@@ -51,7 +57,7 @@ agent-backend/  FastAPI + AutoGen(Gemini) Agent 백엔드 (localhost:8000)
 mcp-server/     로컬 네이티브 MCP 서버 — 실제 OS 액션 수행
 ```
 
-세 프로젝트가 어떻게 맞물리는지는 이렇습니다. 클라이언트에서 문장을 보내면 → Agent 백엔드가 SSE로 진행 상황을 스트리밍하면서 → 내부적으로 planner/executor 두 에이전트가 계획을 세우고 → executor가 stdio로 띄운 MCP 서버의 도구(`launch_program`, `open_url`, `play_youtube`)를 실제로 호출합니다. 각 폴더의 README에 더 자세한 설명이 있습니다.
+세 프로젝트가 어떻게 맞물리는지는 이렇습니다. 클라이언트에서 문장을 보내면 → Agent 백엔드가 SSE로 진행 상황을 스트리밍하면서 → 내부적으로 planner/executor 두 에이전트가 계획을 세우고 → executor가 stdio로 띄운 MCP 서버의 도구(`launch_program`, `open_url`, `play_youtube`, `control_media`, `close_program`, `open_folder`)를 실제로 호출합니다. 각 폴더의 README에 더 자세한 설명이 있습니다.
 
 - [client/README.md](client/README.md)
 - [agent-backend/README.md](agent-backend/README.md)
@@ -64,6 +70,23 @@ mcp-server/     로컬 네이티브 MCP 서버 — 실제 OS 액션 수행
 - **Node.js** — `client`(Next.js 16) 실행에 필요합니다. Next.js 16의 요구 버전을 따르시면 됩니다.
 - **Gemini API 키** — [Google AI Studio](https://aistudio.google.com/)에서 발급.
 
+## MCP 서버 결합
+
+`agent-backend/mcp_servers.json`(Claude Desktop 표준 `mcpServers` 형식)에 서버를 등록하면 그 도구를 비서가 사용할 수 있습니다. 로컬 mcp-server도 `local` 항목으로 등록되어 있습니다.
+
+```json
+{
+  "mcpServers": {
+    "local": { "command": "...python.exe", "args": ["...server.py"] },
+    "filesystem": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\me\\Downloads"] }
+  }
+}
+```
+
+- `command`+`args` → 로컬(stdio) 서버, `url` → 원격(HTTP) 서버.
+- 클라이언트 `/servers` 페이지에서 목록 확인·추가·삭제도 가능합니다.
+- ⚠️ **보안:** `/servers`에서 서버를 추가한다는 것은 임의의 명령을 호스트에서 실행시킨다는 의미입니다. 신뢰할 수 있는 서버만 등록하세요. Agent 백엔드는 `127.0.0.1`(루프백)에만 바인딩되어 외부 네트워크에서는 접근할 수 없지만, `/mcp-servers` API 자체에는 인증이 없으므로 이 PC를 사용하는 다른 프로세스나 사용자도 호출할 수 있다는 점을 유의하세요.
+
 ## 환경변수
 
 | 변수 | 위치 | 기본값 | 설명 |
@@ -72,8 +95,6 @@ mcp-server/     로컬 네이티브 MCP 서버 — 실제 OS 액션 수행
 | `GEMINI_MODEL` | agent-backend/.env | `gemini-2.0-flash` | 사용할 Gemini 모델 |
 | `AGENT_PORT` | agent-backend/.env | `8000` | Agent 백엔드 포트 |
 | `CORS_ALLOW_ORIGIN` | agent-backend/.env | `http://localhost:3000` | 허용할 클라이언트 오리진 |
-| `MCP_SERVER_COMMAND` | agent-backend/.env | (필수) | MCP 서버를 기동할 python 실행 파일 경로 |
-| `MCP_SERVER_ARGS` | agent-backend/.env | (필수) | MCP 서버 스크립트 경로 |
 | `NEXT_PUBLIC_AGENT_URL` | client/.env.local | `http://localhost:8000` | 클라이언트가 호출할 백엔드 URL |
 
 ## 실행
@@ -96,3 +117,6 @@ mcp-server/     로컬 네이티브 MCP 서버 — 실제 OS 액션 수행
 - `뉴스 페이지 열어줘` — URL 열기
 - `카페 음악 재생해 줘` — 유튜브 검색 후 재생
 - `크롬 열고 뉴스 보여줘` — 위 동작을 여러 단계로 묶은 복합 명령
+- `볼륨 올려줘` — 미디어/볼륨 제어
+- `메모장 닫아줘` — 실행 중인 프로그램 종료
+- `다운로드 폴더 열어줘` — 주요 폴더 열기
