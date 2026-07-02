@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { AddServerModal } from "@/components/AddServerModal";
 import { CommandForm } from "@/components/CommandForm";
 import { ProgressLog } from "@/components/ProgressLog";
 import { ResultMessage } from "@/components/ResultMessage";
@@ -12,6 +14,7 @@ const EXAMPLES = ["카카오톡 실행해 줘", "뉴스 페이지 열어줘", "�
 
 export default function Home() {
   const { stages, result, error, isLoading, submit } = useCommandStream(AGENT_URL);
+  const [showAddServer, setShowAddServer] = useState(false);
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-16">
@@ -49,12 +52,22 @@ export default function Home() {
           ))}
         </div>
 
-        <div className="mt-6 text-center">
-          <Link href="/servers" className="text-xs text-muted hover:text-accent">
+        <div className="mt-6 flex items-center justify-center gap-3 text-xs">
+          <button
+            type="button"
+            onClick={() => setShowAddServer(true)}
+            className="text-muted hover:text-accent"
+          >
+            + MCP 추가
+          </button>
+          <span className="text-border">·</span>
+          <Link href="/servers" className="text-muted hover:text-accent">
             MCP 서버 관리 →
           </Link>
         </div>
       </div>
+
+      <AddServerModal open={showAddServer} onClose={() => setShowAddServer(false)} />
     </main>
   );
 }
