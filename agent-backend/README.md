@@ -1,0 +1,45 @@
+# agent-backend — 명령 해석 및 오케스트레이션
+
+사용자 문장을 받아서 "무엇을 할지" 판단하고, 그 결정을 MCP 서버에 실행시키는 FastAPI 서버입니다. 실제로 프로그램을 켜거나 브라우저를 여는 코드는 여기에 없습니다 — 이 프로젝트는 오직 판단과 조율만 담당하고, 실행은 [mcp-server](../mcp-server/README.md)에 위임합니다.
+
+## 요청 흐름
+
+클라이언트가 `POST /command`로 `{"text": "카페 음악 재생해 줘"}`를 보내면, `main.py`가 `pipeline.run_command_pipeline()`을 호출해서 나오는 이벤트를 그대로 SSE로 스트리밍합니다(`sse.py`). 내부적으로는 AutoGen의 `SelectorGroupChat`으로 두 에이전트가 순서대로 일합니다(`pipeline.py`, `agents.py`).
+
+1. **planner** — "카페 음악 재생해 줘"라는 문장을 보고 `play_youtube(query="카페 음악")` 같은 도구 호출 계획을 세웁니다. 응답은 `Plan`이라는 고정 스키마(`agents.py`의 `ToolCallStep`, `Plan`)로만 나오도록 강제되어 있어서, LLM이 엉뚱한 형식으로 답할 여지를 줄였습니다. "크롬 열고 뉴스 보여줘" 같은 복합 명령은 여러 단계로 쪼개서 계획합니다.
+2. **executor** — planner가 세운 계획을 받아 `McpWorkbench`를 통해 MCP 서버의 도구를 실제로 순서대로 호출합니다. 모든 호출이 끝나면 `TERMINATE`라고 말해서 대화를 끝냅니다.
+
+이 과정에서 `pipeline.py`는 각 에이전트가 말을 시작하는 시점을 감지해 `intent_analysis` → `planning` → `tool_call` 순서로 stage 이벤트를 클라이언트에 흘려보내고, 마지막 도구 호출 결과를 하나의 `result` 이벤트로 정리해서 보냅니다.
+
+## 파일별 역할
+
+- `main.py` — FastAPI 앱. `/health`, `/command`(SSE) 두 엔드포인트.
+- `pipeline.py` — SelectorGroupChat을 조립하고 실행하며 SSE 이벤트로 변환하는 오케스트레이션 로직.
+- `agents.py` — planner/executor/user_proxy 에이전트 정의, 프로그램 별칭 표(`PROGRAM_ALIASES`), URL 카테고리 힌트(`URL_CATEGORY_HINTS`), `Plan` 스키마.
+- `llm_client.py` — Gemini를 OpenAI 호환 API로 부르는 `OpenAIChatCompletionClient` 생성.
+- `mcp_tools.py` — MCP 서버를 stdio 서브프로세스로 띄우기 위한 `StdioServerParams` 생성.
+- `sse.py` — SSE 이벤트 딕셔너리 생성 및 `data: ...\n\n` 포맷팅.
+- `config.py` — `.env` 로딩 및 환경변수 읽기.
+
+## 환경변수 (`.env`)
+
+```
+GEMINI_API_KEY=              # 필수, Gemini API 키
+GEMINI_MODEL=gemini-2.0-flash
+AGENT_PORT=8000
+CORS_ALLOW_ORIGIN=http://localhost:3000
+MCP_SERVER_COMMAND=          # 필수, mcp-server를 실행할 python.exe 경로
+MCP_SERVER_ARGS=             # 필수, mcp-server/server.py 경로
+```
+
+`GEMINI_MODEL`은 모델 등급에 따라 지시 이행 능력 차이가 꽤 큽니다. 가벼운 모델(`gemini-2.5-flash-lite` 등)은 `PROGRAM_ALIASES` 같은 프롬프트 안의 매핑 표를 놓치고 원문을 그대로 도구에 넘기는 경우가 있었습니다. 별칭 매칭이 잘 안 될 때는 429(할당량 초과) 에러인지, 아니면 응답 자체는 정상인데 모델이 지시를 놓친 것인지 구분해서 봐야 합니다.
+
+## 실행
+
+```powershell
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+.venv\Scripts\python -m uvicorn main:app --port 8000
+```
+
+저장소 루트의 `run.ps1`을 쓰면 `mcp-server`까지 함께 venv 준비 및 기동을 처리해줍니다.
