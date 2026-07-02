@@ -1,5 +1,3 @@
-from typing import Literal
-
 from autogen_agentchat.agents import AssistantAgent, UserProxyAgent
 from pydantic import BaseModel
 
@@ -20,7 +18,7 @@ URL_CATEGORY_HINTS: dict[str, str] = {
 
 
 class ToolCallStep(BaseModel):
-    tool: Literal["launch_program", "open_url", "play_youtube"]
+    tool: str
     arguments: dict[str, str]
 
 
@@ -28,34 +26,48 @@ class Plan(BaseModel):
     steps: list[ToolCallStep]
 
 
-PLANNER_SYSTEM_MESSAGE = f"""당신은 PC 개인 비서의 계획 수립 담당자입니다.
-사용자의 텍스트 명령을 분석해 아래 3개의 MCP 도구 중 필요한 도구를 어떤 인자로, 어떤 순서로 호출할지 계획을 세우세요.
+PLANNER_SYSTEM_MESSAGE_TEMPLATE = """당신은 PC 개인 비서의 계획 수립 담당자입니다.
+사용자의 텍스트 명령을 분석해, 아래에 나열된 MCP 도구 중 필요한 도구를 어떤 인자로, 어떤 순서로 호출할지 계획을 세우세요.
 
-- launch_program(program_name: string): 설치된 프로그램 실행
-- open_url(url: string): 브라우저에서 URL 열기
-- play_youtube(query: string): 유튜브 영상 검색 후 재생
+사용 가능한 도구:
+{tools}
 
-프로그램명 별칭 매핑(우선 적용): {PROGRAM_ALIASES}
-URL 카테고리 힌트(구체적인 URL이 없는 요청일 때 참고, 매핑에 없으면 자유롭게 추론): {URL_CATEGORY_HINTS}
+프로그램명 별칭 매핑(우선 적용): {aliases}
+URL 카테고리 힌트(구체적인 URL이 없는 요청일 때 참고, 매핑에 없으면 자유롭게 추론): {url_hints}
 
 복합 명령("크롬 열고 뉴스 보여줘" 등)은 여러 단계로 분해하세요.
+tool 값은 반드시 위 목록에 있는 도구 이름 그대로 사용하세요.
 반드시 정의된 JSON 스키마 형식으로만 응답하세요."""
 
 
-def build_planner_agent(model_client) -> AssistantAgent:
+def _format_tools(tools: list[dict]) -> str:
+    lines = []
+    for tool in tools:
+        name = tool.get("name", "")
+        description = (tool.get("description") or "").strip().replace("\n", " ")
+        lines.append(f"- {name}: {description}")
+    return "\n".join(lines)
+
+
+def build_planner_agent(model_client, tools: list[dict]) -> AssistantAgent:
+    system_message = PLANNER_SYSTEM_MESSAGE_TEMPLATE.format(
+        tools=_format_tools(tools),
+        aliases=PROGRAM_ALIASES,
+        url_hints=URL_CATEGORY_HINTS,
+    )
     return AssistantAgent(
         name="planner",
         model_client=model_client,
-        system_message=PLANNER_SYSTEM_MESSAGE,
+        system_message=system_message,
         output_content_type=Plan,
     )
 
 
-def build_executor_agent(model_client, workbench) -> AssistantAgent:
+def build_executor_agent(model_client, workbenches) -> AssistantAgent:
     return AssistantAgent(
         name="executor",
         model_client=model_client,
-        workbench=workbench,
+        workbench=workbenches,
         reflect_on_tool_use=True,
         system_message=(
             "당신은 계획된 MCP 도구 호출을 실행하는 담당자입니다. "

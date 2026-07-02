@@ -1,4 +1,6 @@
 import json
+import logging
+from contextlib import AsyncExitStack
 from typing import AsyncGenerator
 
 from autogen_agentchat.base import TaskResult
@@ -9,8 +11,10 @@ from autogen_ext.tools.mcp import McpWorkbench
 
 from agents import Plan, build_executor_agent, build_planner_agent, build_user_proxy
 from llm_client import get_model_client
-from mcp_tools import get_mcp_server_params
+from mcp_config import load_server_params
 from sse import result_event, stage_event
+
+logger = logging.getLogger("agent-backend")
 
 STAGE_MESSAGES = {
     "intent_analysis": "의도를 분석하고 있습니다...",
@@ -37,9 +41,20 @@ async def run_command_pipeline(text: str) -> AsyncGenerator[dict, None]:
     last_is_error = False
 
     try:
-        async with McpWorkbench(server_params=get_mcp_server_params()) as workbench:
-            planner = build_planner_agent(model_client)
-            executor = build_executor_agent(model_client, workbench)
+        async with AsyncExitStack() as stack:
+            workbenches = []
+            tools: list[dict] = []
+            for name, params in load_server_params().items():
+                try:
+                    workbench = await stack.enter_async_context(McpWorkbench(server_params=params))
+                    server_tools = await workbench.list_tools()
+                    workbenches.append(workbench)
+                    tools.extend(server_tools)
+                except Exception:
+                    logger.warning("MCP 서버 '%s' 연결 실패, 건너뜁니다.", name, exc_info=True)
+
+            planner = build_planner_agent(model_client, tools)
+            executor = build_executor_agent(model_client, workbenches)
             user_proxy = build_user_proxy()
 
             team = SelectorGroupChat(
