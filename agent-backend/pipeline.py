@@ -3,11 +3,11 @@ from typing import AsyncGenerator
 
 from autogen_agentchat.base import TaskResult
 from autogen_agentchat.conditions import TextMentionTermination
-from autogen_agentchat.messages import ToolCallExecutionEvent
+from autogen_agentchat.messages import StructuredMessage, ToolCallExecutionEvent
 from autogen_agentchat.teams import SelectorGroupChat
 from autogen_ext.tools.mcp import McpWorkbench
 
-from agents import build_executor_agent, build_planner_agent, build_user_proxy
+from agents import Plan, build_executor_agent, build_planner_agent, build_user_proxy
 from llm_client import get_model_client
 from mcp_tools import get_mcp_server_params
 from sse import result_event, stage_event
@@ -46,6 +46,7 @@ async def run_command_pipeline(text: str) -> AsyncGenerator[dict, None]:
                 [user_proxy, planner, executor],
                 model_client=model_client,
                 termination_condition=TextMentionTermination("TERMINATE"),
+                custom_message_types=[StructuredMessage[Plan]],
             )
 
             async for message in team.run_stream(task=text):
