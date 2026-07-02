@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 
+from folders import open_folder as _open_folder
 from media import control_media as _control_media
 from processes import close_program as _close_program
 from programs import launch_program as _launch_program
@@ -53,6 +54,13 @@ def control_media(action: str) -> dict:
     play_pause(재생/일시정지), next(다음 곡), prev(이전 곡),
     volume_up(볼륨 올리기), volume_down(볼륨 내리기), mute(음소거)."""
     return _control_media(action)
+
+
+@mcp.tool()
+def open_folder(folder_name: str) -> dict:
+    """주요 사용자 폴더를 탐색기로 연다. folder_name은 다음 중 하나:
+    다운로드(Downloads), 문서(Documents), 바탕화면(Desktop), 사진(Pictures)."""
+    return _open_folder(folder_name)
 
 
 if __name__ == "__main__":
