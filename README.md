@@ -13,6 +13,36 @@
 
 이렇게 나눠두면 Agent 백엔드는 순수하게 "무엇을 할지 판단하는" 역할에 집중할 수 있고, MCP 서버는 나중에 다른 LLM이나 다른 클라이언트에서도 그대로 재사용할 수 있습니다.
 
+## 아키텍처
+
+```mermaid
+flowchart LR
+    User(["사용자"]) -- "텍스트 명령" --> Client
+
+    subgraph Client["client (Next.js)"]
+        Form["명령 입력창"]
+    end
+
+    subgraph Backend["agent-backend (FastAPI)"]
+        API["POST /command"] --> Planner["planner\n계획 수립"]
+        Planner --> Executor["executor\n계획 실행"]
+    end
+
+    subgraph MCP["mcp-server (stdio)"]
+        LaunchProgram["launch_program"]
+        OpenUrl["open_url"]
+        PlayYoutube["play_youtube"]
+    end
+
+    Client -- "POST /command" --> API
+    Executor -- "MCP 도구 호출" --> LaunchProgram
+    Executor -- "MCP 도구 호출" --> OpenUrl
+    Executor -- "MCP 도구 호출" --> PlayYoutube
+    API -. "SSE (stage/result)" .-> Client
+```
+
+클라이언트가 문장을 보내면 planner가 어떤 도구를 어떤 인자로 부를지 계획을 세우고, executor가 그 계획을 MCP 서버에 실제로 실행시킵니다. 진행 상황과 결과는 SSE로 클라이언트에 실시간 스트리밍됩니다.
+
 ## 구성
 
 ```
@@ -26,6 +56,13 @@ mcp-server/     로컬 네이티브 MCP 서버 — 실제 OS 액션 수행
 - [client/README.md](client/README.md)
 - [agent-backend/README.md](agent-backend/README.md)
 - [mcp-server/README.md](mcp-server/README.md)
+
+## 사전 요구사항
+
+- **Windows** — `mcp-server`가 `winreg`, `os.startfile` 등 Windows 전용 API를 직접 사용합니다. macOS/Linux에서는 동작하지 않습니다.
+- **Python 3** — `agent-backend`, `mcp-server` 둘 다 필요합니다(레포에 최소 버전이 고정되어 있지 않습니다).
+- **Node.js** — `client`(Next.js 16) 실행에 필요합니다. Next.js 16의 요구 버전을 따르시면 됩니다.
+- **Gemini API 키** — [Google AI Studio](https://aistudio.google.com/)에서 발급.
 
 ## 환경변수
 
