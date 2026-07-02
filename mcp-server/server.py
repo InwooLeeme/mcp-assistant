@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 from mcp.server.fastmcp import FastMCP
 
 from programs import launch_program as _launch_program
+from youtube import play_youtube as _play_youtube
 
 mcp = FastMCP("MCP Assistant Server")
 
@@ -12,6 +13,12 @@ mcp = FastMCP("MCP Assistant Server")
 def launch_program(program_name: str) -> dict:
     """설치된 프로그램을 이름으로 찾아 실행한다."""
     return _launch_program(program_name)
+
+
+@mcp.tool()
+def play_youtube(query: str) -> dict:
+    """검색어로 유튜브 영상을 찾아 기본 브라우저에서 재생한다."""
+    return _play_youtube(query)
 
 
 @mcp.tool()
