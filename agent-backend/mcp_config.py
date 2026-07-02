@@ -44,10 +44,6 @@ def to_server_params(entry: dict) -> McpServerParams:
     raise ConfigError("MCP 서버 항목에는 'command' 또는 'url' 중 하나가 필요합니다.")
 
 
-def load_server_params() -> dict[str, McpServerParams]:
-    return {name: to_server_params(entry) for name, entry in list_servers().items()}
-
-
 def add_server(name: str, entry: dict) -> None:
     if not name:
         raise ConfigError("서버 이름이 필요합니다.")
