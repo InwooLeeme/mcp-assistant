@@ -20,6 +20,10 @@ data: {"type":"result","status":"success"|"fail","message":"...","detail":{...}}
 - `lib/sseClient.ts` — SSE 스트림을 파싱하는 `streamCommand(text, baseUrl)` 함수.
 - `lib/types.ts` — 위에서 언급한 이벤트 타입 정의.
 - `components/CommandForm.tsx`, `ProgressLog.tsx`, `ResultMessage.tsx` — 로직 없는 순수 프레젠테이션 컴포넌트.
+- `components/AddServerModal.tsx` — 메인 화면에서 페이지 이동 없이 MCP 서버를 추가할 수 있는 모달.
+- `app/servers/page.tsx` — MCP 서버 목록 확인·추가·삭제를 담당하는 관리 페이지(`/servers`).
+- `hooks/useMcpServers.ts` — MCP 서버 목록 조회/추가/삭제 로직을 담은 훅. `/servers` 페이지가 사용하고, `AddServerModal`은 이 훅 없이 `lib/mcpServers.ts`의 `createServer`를 직접 호출합니다.
+- `lib/mcpServers.ts` — `agent-backend`의 `/mcp-servers` API를 호출하는 `fetchServers`/`createServer`/`deleteServer` 함수.
 
 import alias `@/*`는 `client/` 루트를 가리킵니다.
 
@@ -37,5 +41,5 @@ npm --prefix client run dev
 ## 알아두면 좋은 것들
 
 - 테스트 프레임워크가 따로 없습니다. 타입 오류는 `npm run build`로 잡고, 실제 동작은 브라우저에서 직접 확인하는 방식으로 검증합니다.
-- `fetch()`가 네트워크 단에서 실패하면(백엔드가 꺼져 있는 경우 등) 브라우저는 한국어 메시지가 아니라 `TypeError: Failed to fetch`를 던집니다. `useCommandStream.ts`에서 이 경우를 따로 잡아 한국어 메시지로 바꿔주고 있으니, 에러 메시지를 그대로 노출하는 방식으로 되돌리지 않도록 주의해 주세요.
+- `fetch()`가 네트워크 단에서 실패하면(백엔드가 꺼져 있는 경우 등) 브라우저는 한국어 메시지가 아니라 `TypeError: Failed to fetch`를 던집니다. `useCommandStream.ts`, `useMcpServers.ts`, `AddServerModal.tsx`에서 이 경우를 따로 잡아 한국어 메시지로 바꿔주고 있으니, 에러 메시지를 그대로 노출하는 방식으로 되돌리지 않도록 주의해 주세요.
 - Next.js 16 + Tailwind v4 + ESLint 9(flat config) 조합이라 `tailwind.config.js` 같은 구버전 설정 파일은 없습니다. Tailwind 설정은 `app/globals.css`의 `@import "tailwindcss"`로 되어 있습니다.
