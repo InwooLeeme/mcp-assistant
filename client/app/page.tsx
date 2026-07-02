@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { CommandForm } from "@/components/CommandForm";
 import { ProgressLog } from "@/components/ProgressLog";
 import { ResultMessage } from "@/components/ResultMessage";
@@ -46,6 +47,12 @@ export default function Home() {
               {example}
             </button>
           ))}
+        </div>
+
+        <div className="mt-6 text-center">
+          <Link href="/servers" className="text-xs text-muted hover:text-accent">
+            MCP 서버 관리 →
+          </Link>
         </div>
       </div>
     </main>
