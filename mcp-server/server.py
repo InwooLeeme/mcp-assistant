@@ -3,7 +3,15 @@ from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 
+from programs import launch_program as _launch_program
+
 mcp = FastMCP("MCP Assistant Server")
+
+
+@mcp.tool()
+def launch_program(program_name: str) -> dict:
+    """설치된 프로그램을 이름으로 찾아 실행한다."""
+    return _launch_program(program_name)
 
 
 @mcp.tool()
