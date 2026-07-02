@@ -1,11 +1,13 @@
 import json
 from typing import AsyncGenerator
 
-from autogen_agentchat.messages import TextMessage
-from autogen_core import CancellationToken
+from autogen_agentchat.base import TaskResult
+from autogen_agentchat.conditions import TextMentionTermination
+from autogen_agentchat.messages import ToolCallExecutionEvent
+from autogen_agentchat.teams import SelectorGroupChat
 from autogen_ext.tools.mcp import McpWorkbench
 
-from agents import Plan, build_planner_agent
+from agents import build_executor_agent, build_planner_agent, build_user_proxy
 from llm_client import get_model_client
 from mcp_tools import get_mcp_server_params
 from sse import result_event, stage_event
@@ -27,35 +29,43 @@ def _parse_tool_payload(content: str) -> dict:
 
 async def run_command_pipeline(text: str) -> AsyncGenerator[dict, None]:
     yield stage_event("intent_analysis", STAGE_MESSAGES["intent_analysis"])
-    yield stage_event("planning", STAGE_MESSAGES["planning"])
 
     model_client = get_model_client()
-    try:
-        planner = build_planner_agent(model_client)
-        response = await planner.on_messages(
-            [TextMessage(content=text, source="user")], CancellationToken()
-        )
-        plan: Plan = response.chat_message.content
-    finally:
-        await model_client.close()
-
-    if not plan.steps:
-        yield result_event("fail", "수행할 작업을 파악하지 못했습니다.", {})
-        return
-
-    yield stage_event("tool_call", STAGE_MESSAGES["tool_call"])
-
+    planning_emitted = False
+    tool_call_emitted = False
     last_payload: dict = {}
     last_is_error = False
-    async with McpWorkbench(server_params=get_mcp_server_params()) as workbench:
-        for step in plan.steps:
-            tool_result = await workbench.call_tool(
-                step.tool, step.arguments, CancellationToken()
+
+    try:
+        async with McpWorkbench(server_params=get_mcp_server_params()) as workbench:
+            planner = build_planner_agent(model_client)
+            executor = build_executor_agent(model_client, workbench)
+            user_proxy = build_user_proxy()
+
+            team = SelectorGroupChat(
+                [user_proxy, planner, executor],
+                model_client=model_client,
+                termination_condition=TextMentionTermination("TERMINATE"),
             )
-            last_payload = _parse_tool_payload(tool_result.to_text())
-            last_is_error = tool_result.is_error
-            if last_is_error:
-                break
+
+            async for message in team.run_stream(task=text):
+                if isinstance(message, TaskResult):
+                    continue
+
+                source = getattr(message, "source", "")
+                if source == "planner" and not planning_emitted:
+                    yield stage_event("planning", STAGE_MESSAGES["planning"])
+                    planning_emitted = True
+                if source == "executor" and not tool_call_emitted:
+                    yield stage_event("tool_call", STAGE_MESSAGES["tool_call"])
+                    tool_call_emitted = True
+
+                if isinstance(message, ToolCallExecutionEvent):
+                    result = message.content[-1]
+                    last_payload = _parse_tool_payload(result.content)
+                    last_is_error = result.is_error
+    finally:
+        await model_client.close()
 
     status = "fail" if last_is_error else last_payload.get("status", "fail")
     default_message = (
