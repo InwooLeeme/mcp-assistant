@@ -13,6 +13,8 @@ data: {"type":"result","status":"success"|"fail","message":"...","detail":{...}}
 
 `stage` 이벤트가 오는 동안 화면에는 "의도를 분석하고 있습니다..." 같은 진행 로그가 쌓이고, 마지막에 정확히 하나의 `result` 이벤트가 오면 그걸로 스트림을 끝내고 성공/실패 메시지를 보여줍니다.
 
+대화는 클라이언트가 localStorage에 보관하며, 매 명령 시 활성 대화의 이전 턴을 `history`로 함께 전송해 후속 명령의 맥락을 잇는다.
+
 ## 구조
 
 - `app/page.tsx` — 화면 조립. 아래 컴포넌트/훅을 가져다 붙이기만 합니다.
@@ -24,6 +26,10 @@ data: {"type":"result","status":"success"|"fail","message":"...","detail":{...}}
 - `app/servers/page.tsx` — MCP 서버 목록 확인·추가·삭제를 담당하는 관리 페이지(`/servers`).
 - `hooks/useMcpServers.ts` — MCP 서버 목록 조회/추가/삭제 로직을 담은 훅. `/servers` 페이지가 사용하고, `AddServerModal`은 이 훅 없이 `lib/mcpServers.ts`의 `createServer`를 직접 호출합니다.
 - `lib/mcpServers.ts` — `agent-backend`의 `/mcp-servers` API를 호출하는 `fetchServers`/`createServer`/`deleteServer` 함수.
+- `hooks/useConversations.ts` — 여러 대화 목록·활성 대화·CRUD·localStorage 영속화를 담당하는 훅.
+- `lib/conversationStore.ts` — 대화 목록을 localStorage에 읽고 쓰는 함수(빈 대화는 저장 안 함).
+- `components/ConversationSidebar.tsx` — 대화 목록·전환·삭제·새 대화 버튼을 그리는 왼쪽 사이드바.
+- `components/ConversationTurn.tsx` — 완료된 한 턴(사용자 명령 + 결과)을 그리는 프레젠테이션 컴포넌트.
 
 import alias `@/*`는 `client/` 루트를 가리킵니다.
 

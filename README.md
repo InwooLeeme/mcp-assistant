@@ -52,7 +52,7 @@ flowchart LR
 ## 구성
 
 ```
-client/         Next.js 텍스트 입력 UI (localhost:3000)
+client/         Next.js 텍스트 입력 UI (localhost:3000) — 여러 대화를 동시에 관리하고 각 대화는 브라우저 localStorage에 저장됩니다.
 agent-backend/  FastAPI + AutoGen(Gemini) Agent 백엔드 (localhost:8000)
 mcp-server/     로컬 네이티브 MCP 서버 — 실제 OS 액션 수행
 ```
