@@ -1,11 +1,16 @@
 import json
 import logging
 from contextlib import AsyncExitStack
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Sequence
 
 from autogen_agentchat.base import TaskResult
 from autogen_agentchat.conditions import TextMentionTermination
-from autogen_agentchat.messages import StructuredMessage, ToolCallExecutionEvent
+from autogen_agentchat.messages import (
+    BaseAgentEvent,
+    BaseChatMessage,
+    StructuredMessage,
+    ToolCallExecutionEvent,
+)
 from autogen_agentchat.teams import SelectorGroupChat
 from autogen_ext.tools.mcp import McpWorkbench
 from pydantic import BaseModel
@@ -53,6 +58,25 @@ def _parse_tool_payload(content: str) -> dict:
         return {"message": content}
 
 
+def _select_next_speaker(
+    messages: Sequence[BaseAgentEvent | BaseChatMessage],
+) -> str | None:
+    """다음 화자를 규칙으로 결정한다.
+
+    planner → executor 순서가 고정되어 있어 매 턴 LLM에게 다음 화자를 묻는
+    것은 낭비다. 정상 흐름에서 executor는 TERMINATE로 대화를 끝내므로 이후
+    선택은 필요 없고, 예외 상황에서만 None을 반환해 모델 기반 선택으로 폴백한다.
+    """
+    if not messages:
+        return "planner"
+    last_source = messages[-1].source
+    if last_source == "planner":
+        return "executor"
+    if last_source == "executor":
+        return None
+    return "planner"
+
+
 async def run_command_pipeline(
     text: str, history: list[HistoryTurn] | None = None
 ) -> AsyncGenerator[dict, None]:
@@ -88,6 +112,7 @@ async def run_command_pipeline(
             team = SelectorGroupChat(
                 [user_proxy, planner, executor],
                 model_client=selector_client,
+                selector_func=_select_next_speaker,
                 termination_condition=TextMentionTermination("TERMINATE"),
                 custom_message_types=[StructuredMessage[Plan]],
             )

@@ -35,6 +35,8 @@ CORS_ALLOW_ORIGIN=http://localhost:3000
 
 planner/executor/selector 세 에이전트는 각각 `PLANNER_MODEL`/`EXECUTOR_MODEL`/`SELECTOR_MODEL`로 다른 Gemini 모델을 지정할 수 있으며, 지정하지 않으면 `GEMINI_MODEL`을 공유합니다.
 
+발언자 순서(planner → executor)는 고정이라, 다음 화자를 매 턴 LLM에게 묻지 않고 `pipeline.py`의 `_select_next_speaker` 규칙으로 결정합니다. 따라서 정상 흐름에서는 selector 모델이 호출되지 않으며, `SELECTOR_MODEL`은 규칙이 판단을 미루는 예외 상황의 폴백 용도로만 쓰입니다.
+
 MCP 서버 목록은 `mcp_servers.json`에서 관리하며, 파이프라인이 요청마다 모든 서버에 연결해 도구를 합쳐 planner에 전달합니다. `GET/POST/DELETE /mcp-servers`로 목록 조회·추가·삭제할 수 있고, 한 서버가 연결에 실패해도 나머지로 계속 동작합니다.
 
 `GEMINI_MODEL`은 모델 등급에 따라 지시 이행 능력 차이가 꽤 큽니다. 가벼운 모델(`gemini-2.5-flash-lite` 등)은 `PROGRAM_ALIASES` 같은 프롬프트 안의 매핑 표를 놓치고 원문을 그대로 도구에 넘기는 경우가 있었습니다. 별칭 매칭이 잘 안 될 때는 429(할당량 초과) 에러인지, 아니면 응답 자체는 정상인데 모델이 지시를 놓친 것인지 구분해서 봐야 합니다.

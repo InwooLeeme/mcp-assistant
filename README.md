@@ -105,7 +105,7 @@ mcp-server/     로컬 네이티브 MCP 서버 — 실제 OS 액션 수행
 | `GEMINI_MODEL` | agent-backend/.env | `gemini-2.0-flash` | 사용할 Gemini 모델 |
 | `PLANNER_MODEL` | agent-backend/.env | `GEMINI_MODEL` | planner 에이전트 전용 모델(선택) |
 | `EXECUTOR_MODEL` | agent-backend/.env | `GEMINI_MODEL` | executor 에이전트 전용 모델(선택) |
-| `SELECTOR_MODEL` | agent-backend/.env | `GEMINI_MODEL` | SelectorGroupChat 발언자 선택 모델(선택) |
+| `SELECTOR_MODEL` | agent-backend/.env | `GEMINI_MODEL` | 발언자 선택 폴백 모델(선택). 순서가 고정이라 정상 흐름에선 호출되지 않음 |
 | `AGENT_PORT` | agent-backend/.env | `8000` | Agent 백엔드 포트 |
 | `CORS_ALLOW_ORIGIN` | agent-backend/.env | `http://localhost:3000` | 허용할 클라이언트 오리진 |
 | `NEXT_PUBLIC_AGENT_URL` | client/.env.local | `http://localhost:8000` | 클라이언트가 호출할 백엔드 URL |
