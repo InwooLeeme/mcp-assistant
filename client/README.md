@@ -18,7 +18,7 @@ data: {"type":"result","status":"success"|"fail","message":"...","detail":{...}}
 ## 구조
 
 - `app/page.tsx` — 화면 조립. 아래 컴포넌트/훅을 가져다 붙이기만 합니다.
-- `hooks/useCommandStream.ts` — 실제 로직이 모여 있는 곳. `{ stages, result, error, isLoading, submit }`을 반환하고, `submit()`을 호출할 때마다 이전 상태를 전부 초기화합니다(대화 맥락을 유지하는 챗봇이 아니라 매번 새 명령을 처리하는 구조라서요).
+- `hooks/useCommandStream.ts` — 실제 로직이 모여 있는 곳. `{ stages, result, error, isLoading, submit }`을 반환하고, `submit()`을 호출할 때마다 이전 상태를 전부 초기화합니다(이 훅은 진행 중인 한 명령의 스트리밍 상태만 관리하며, 대화 맥락 자체는 `useConversations` 훅이 별도로 유지합니다).
 - `lib/sseClient.ts` — SSE 스트림을 파싱하는 `streamCommand(text, baseUrl)` 함수.
 - `lib/types.ts` — 위에서 언급한 이벤트 타입 정의.
 - `components/CommandForm.tsx`, `ProgressLog.tsx`, `ResultMessage.tsx` — 로직 없는 순수 프레젠테이션 컴포넌트.
