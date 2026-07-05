@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from agents import Plan, build_executor_agent, build_planner_agent, build_user_proxy
 from llm_client import get_model_client
+import config
 import mcp_config
 from sse import result_event, stage_event
 
@@ -58,7 +59,9 @@ async def run_command_pipeline(
     task = _build_task(text, history or [])
     yield stage_event("intent_analysis", STAGE_MESSAGES["intent_analysis"])
 
-    model_client = get_model_client()
+    planner_client = get_model_client(config.PLANNER_MODEL)
+    executor_client = get_model_client(config.EXECUTOR_MODEL)
+    selector_client = get_model_client(config.SELECTOR_MODEL)
     planning_emitted = False
     tool_call_emitted = False
     last_payload: dict = {}
@@ -78,13 +81,13 @@ async def run_command_pipeline(
                 except Exception:
                     logger.warning("MCP 서버 '%s' 연결 실패, 건너뜁니다.", name, exc_info=True)
 
-            planner = build_planner_agent(model_client, tools)
-            executor = build_executor_agent(model_client, workbenches)
+            planner = build_planner_agent(planner_client, tools)
+            executor = build_executor_agent(executor_client, workbenches)
             user_proxy = build_user_proxy()
 
             team = SelectorGroupChat(
                 [user_proxy, planner, executor],
-                model_client=model_client,
+                model_client=selector_client,
                 termination_condition=TextMentionTermination("TERMINATE"),
                 custom_message_types=[StructuredMessage[Plan]],
             )
@@ -106,7 +109,9 @@ async def run_command_pipeline(
                     last_payload = _parse_tool_payload(result.content)
                     last_is_error = result.is_error
     finally:
-        await model_client.close()
+        await planner_client.close()
+        await executor_client.close()
+        await selector_client.close()
 
     status = "fail" if last_is_error else last_payload.get("status", "fail")
     default_message = (

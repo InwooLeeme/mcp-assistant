@@ -3,9 +3,9 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 import config
 
 
-def get_model_client() -> OpenAIChatCompletionClient:
+def get_model_client(model: str) -> OpenAIChatCompletionClient:
     return OpenAIChatCompletionClient(
-        model=config.GEMINI_MODEL,
+        model=model,
         base_url=config.GEMINI_BASE_URL,
         api_key=config.GEMINI_API_KEY,
         model_info={
