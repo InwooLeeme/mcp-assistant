@@ -1,13 +1,14 @@
-import type { CommandEvent } from "./types";
+import type { CommandEvent, HistoryTurn } from "./types";
 
 export async function* streamCommand(
   text: string,
-  baseUrl: string
+  baseUrl: string,
+  history: HistoryTurn[] = []
 ): AsyncGenerator<CommandEvent, void, void> {
   const response = await fetch(`${baseUrl}/command`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, history }),
   });
 
   if (!response.ok || !response.body) {

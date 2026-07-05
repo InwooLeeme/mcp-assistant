@@ -14,3 +14,16 @@ export type ResultEvent = {
 };
 
 export type CommandEvent = StageEvent | ResultEvent;
+
+export type HistoryTurn = {
+  command: string;
+  status: "success" | "fail";
+  message: string;
+};
+
+export type Conversation = {
+  id: string;
+  title: string;
+  turns: HistoryTurn[];
+  updatedAt: number;
+};
