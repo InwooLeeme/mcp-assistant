@@ -4,7 +4,7 @@
 
 ## 요청 흐름
 
-클라이언트가 `POST /command`로 `{"text": "카페 음악 재생해 줘"}`를 보내면, `main.py`가 `pipeline.run_command_pipeline()`을 호출해서 나오는 이벤트를 그대로 SSE로 스트리밍합니다(`sse.py`). 내부적으로는 AutoGen의 `SelectorGroupChat`으로 두 에이전트가 순서대로 일합니다(`pipeline.py`, `agents.py`).
+클라이언트가 `POST /command`로 `{"text": "카페 음악 재생해 줘", "history": [{"command": "...", "status": "success", "message": "..."}]}`를 보내면, `main.py`가 `pipeline.run_command_pipeline(text, history)`를 호출해서 나오는 이벤트를 그대로 SSE로 스트리밍합니다(`sse.py`). `history`는 클라이언트가 관리하는 같은 대화의 이전 턴들이며(백엔드는 요청 간 아무것도 저장하지 않는 무상태 서버), `pipeline.py`의 `_build_task`가 이를 "[이전 대화]" 프리앰블로 조립해 `text` 앞에 붙입니다 — `history`가 비어 있으면 프리앰블 없이 `text`가 그대로 전달되어 이전 동작과 동일합니다. 내부적으로는 AutoGen의 `SelectorGroupChat`으로 두 에이전트가 이 프리앰블 포함 task를 순서대로 처리합니다(`pipeline.py`, `agents.py`).
 
 1. **planner** — "카페 음악 재생해 줘"라는 문장을 보고 `play_youtube(query="카페 음악")` 같은 도구 호출 계획을 세웁니다. 응답은 `Plan`이라는 고정 스키마(`agents.py`의 `ToolCallStep`, `Plan`)로만 나오도록 강제되어 있어서, LLM이 엉뚱한 형식으로 답할 여지를 줄였습니다. "크롬 열고 뉴스 보여줘" 같은 복합 명령은 여러 단계로 쪼개서 계획합니다.
 2. **executor** — planner가 세운 계획을 받아 `McpWorkbench`를 통해 MCP 서버의 도구를 실제로 순서대로 호출합니다. 모든 호출이 끝나면 `TERMINATE`라고 말해서 대화를 끝냅니다.
@@ -14,7 +14,7 @@
 ## 파일별 역할
 
 - `main.py` — FastAPI 앱. `/health`, `/command`(SSE) 두 엔드포인트.
-- `pipeline.py` — SelectorGroupChat을 조립하고 실행하며 SSE 이벤트로 변환하는 오케스트레이션 로직.
+- `pipeline.py` — SelectorGroupChat을 조립하고 실행하며 SSE 이벤트로 변환하는 오케스트레이션 로직. `HistoryTurn` 모델과 `_build_task`가 클라이언트가 보낸 이전 대화 턴을 "[이전 대화]" 프리앰블로 조립하는 것도 여기서 담당합니다.
 - `agents.py` — planner/executor/user_proxy 에이전트 정의, 프로그램 별칭 표(`PROGRAM_ALIASES`), URL 카테고리 힌트(`URL_CATEGORY_HINTS`), `Plan` 스키마.
 - `llm_client.py` — Gemini를 OpenAI 호환 API로 부르는 `OpenAIChatCompletionClient` 생성.
 - `mcp_config.py` — `mcp_servers.json` 로딩·저장 및 서버 목록 조회·추가·삭제(`list_servers`, `add_server`, `remove_server`, `to_server_params`, `load_server_params`).

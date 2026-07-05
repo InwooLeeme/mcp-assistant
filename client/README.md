@@ -13,23 +13,30 @@ data: {"type":"result","status":"success"|"fail","message":"...","detail":{...}}
 
 `stage` 이벤트가 오는 동안 화면에는 "의도를 분석하고 있습니다..." 같은 진행 로그가 쌓이고, 마지막에 정확히 하나의 `result` 이벤트가 오면 그걸로 스트림을 끝내고 성공/실패 메시지를 보여줍니다.
 
-대화는 클라이언트가 localStorage에 보관하며, 매 명령 시 활성 대화의 이전 턴을 `history`로 함께 전송해 후속 명령의 맥락을 잇는다.
+## 대화 기억 & 여러 대화 관리
+
+화면 왼쪽에는 대화 목록 사이드바가 있고, 대화의 상태(목록·영속화·맥락)는 전부 클라이언트가 갖고 있습니다(`agent-backend`는 요청 간 아무것도 기억하지 않는 무상태 서버입니다).
+
+- 대화는 `useConversations` 훅이 관리하며 브라우저 `localStorage`에 저장됩니다. 새로고침하거나 브라우저를 껐다 켜도 대화 목록이 그대로 남습니다. 턴이 하나도 없는 빈 대화는 저장하지 않습니다.
+- 명령을 보낼 때마다 활성 대화에 쌓인 이전 턴들(`{ command, status, message }`)을 `history`로 함께 전송합니다(`lib/sseClient.ts`). 백엔드가 이를 "이전 대화" 맥락으로 붙여서 처리하므로, "그거 닫아줘" 같은 후속 명령이 앞 명령을 이어받습니다.
+- 사이드바의 "+ 새 대화"로 새 맥락을 시작하거나, 기존 대화를 클릭해 전환하거나, `×`로 삭제할 수 있습니다. 대화 제목은 첫 명령에서 자동 생성됩니다(이름 변경 기능은 없음).
+- 다른 대화로 전환하면 `history`도 그 대화의 턴으로 바뀌므로 대화 간 맥락은 섞이지 않습니다(맥락 격리).
 
 ## 구조
 
-- `app/page.tsx` — 화면 조립. 아래 컴포넌트/훅을 가져다 붙이기만 합니다.
-- `hooks/useCommandStream.ts` — 실제 로직이 모여 있는 곳. `{ stages, result, error, isLoading, submit }`을 반환하고, `submit()`을 호출할 때마다 이전 상태를 전부 초기화합니다(이 훅은 진행 중인 한 명령의 스트리밍 상태만 관리하며, 대화 맥락 자체는 `useConversations` 훅이 별도로 유지합니다).
-- `lib/sseClient.ts` — SSE 스트림을 파싱하는 `streamCommand(text, baseUrl, history, signal)` 함수.
-- `lib/types.ts` — 위에서 언급한 이벤트 타입 정의.
+- `app/page.tsx` — 화면 조립. 사이드바·입력창·진행 로그·결과 표시를 붙이고, `useConversations`/`useCommandStream` 두 훅을 연결합니다.
+- `hooks/useCommandStream.ts` — `{ stages, result, error, isLoading, submit, reset }`을 반환. `submit()`을 호출할 때마다 이전 상태를 전부 초기화합니다 — 이 훅은 진행 중인 한 명령의 스트리밍 상태만 관리하며, 대화 맥락 자체는 `useConversations` 훅이 별도로 유지합니다.
+- `lib/sseClient.ts` — SSE 스트림을 파싱하는 `streamCommand(text, baseUrl, history, signal)` 함수. `signal`로 이전 요청을 취소할 수 있습니다.
+- `lib/types.ts` — SSE 이벤트 타입(`StageEvent`, `ResultEvent`, `CommandEvent`)과 대화 타입(`HistoryTurn`, `Conversation`) 정의.
+- `hooks/useConversations.ts` — 여러 대화 목록·활성 대화·생성/전환/삭제(CRUD)·localStorage 영속화를 담당하는 훅.
+- `lib/conversationStore.ts` — 대화 목록을 localStorage에 읽고 쓰는 함수(빈 대화는 저장 안 함).
+- `components/ConversationSidebar.tsx` — 대화 목록·전환·삭제·새 대화 버튼을 그리는 왼쪽 사이드바.
+- `components/ConversationTurn.tsx` — 완료된 한 턴(사용자 명령 + 결과)을 그리는 프레젠테이션 컴포넌트.
 - `components/CommandForm.tsx`, `ProgressLog.tsx`, `ResultMessage.tsx` — 로직 없는 순수 프레젠테이션 컴포넌트.
 - `components/AddServerModal.tsx` — 메인 화면에서 페이지 이동 없이 MCP 서버를 추가할 수 있는 모달.
 - `app/servers/page.tsx` — MCP 서버 목록 확인·추가·삭제를 담당하는 관리 페이지(`/servers`).
 - `hooks/useMcpServers.ts` — MCP 서버 목록 조회/추가/삭제 로직을 담은 훅. `/servers` 페이지가 사용하고, `AddServerModal`은 이 훅 없이 `lib/mcpServers.ts`의 `createServer`를 직접 호출합니다.
 - `lib/mcpServers.ts` — `agent-backend`의 `/mcp-servers` API를 호출하는 `fetchServers`/`createServer`/`deleteServer` 함수.
-- `hooks/useConversations.ts` — 여러 대화 목록·활성 대화·CRUD·localStorage 영속화를 담당하는 훅.
-- `lib/conversationStore.ts` — 대화 목록을 localStorage에 읽고 쓰는 함수(빈 대화는 저장 안 함).
-- `components/ConversationSidebar.tsx` — 대화 목록·전환·삭제·새 대화 버튼을 그리는 왼쪽 사이드바.
-- `components/ConversationTurn.tsx` — 완료된 한 턴(사용자 명령 + 결과)을 그리는 프레젠테이션 컴포넌트.
 
 import alias `@/*`는 `client/` 루트를 가리킵니다.
 
