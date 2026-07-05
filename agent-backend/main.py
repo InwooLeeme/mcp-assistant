@@ -9,7 +9,7 @@ from autogen_ext.tools.mcp import McpWorkbench
 
 import config
 import mcp_config
-from pipeline import run_command_pipeline
+from pipeline import run_command_pipeline, HistoryTurn
 from sse import format_sse, result_event
 
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +27,7 @@ app.add_middleware(
 
 class CommandRequest(BaseModel):
     text: str
+    history: list[HistoryTurn] = []
 
 
 class ServerCreateRequest(BaseModel):
@@ -102,7 +103,7 @@ async def command(body: CommandRequest) -> StreamingResponse:
     async def event_stream():
         logger.info("[%s] 명령 수신: %s", request_id, body.text)
         try:
-            async for event in run_command_pipeline(body.text):
+            async for event in run_command_pipeline(body.text, body.history):
                 logger.info("[%s] 이벤트: %s", request_id, event)
                 yield format_sse(event)
         except Exception:

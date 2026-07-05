@@ -8,6 +8,7 @@ from autogen_agentchat.conditions import TextMentionTermination
 from autogen_agentchat.messages import StructuredMessage, ToolCallExecutionEvent
 from autogen_agentchat.teams import SelectorGroupChat
 from autogen_ext.tools.mcp import McpWorkbench
+from pydantic import BaseModel
 
 from agents import Plan, build_executor_agent, build_planner_agent, build_user_proxy
 from llm_client import get_model_client
@@ -23,6 +24,26 @@ STAGE_MESSAGES = {
 }
 
 
+class HistoryTurn(BaseModel):
+    command: str
+    status: str
+    message: str
+
+
+def _build_task(text: str, history: list[HistoryTurn]) -> str:
+    if not history:
+        return text
+    lines = ["[이전 대화]"]
+    for turn in history:
+        status_label = "성공" if turn.status == "success" else "실패"
+        lines.append(f"사용자: {turn.command}")
+        lines.append(f"결과({status_label}): {turn.message}")
+    lines.append("")
+    lines.append("[현재 명령]")
+    lines.append(text)
+    return "\n".join(lines)
+
+
 def _parse_tool_payload(content: str) -> dict:
     try:
         payload = json.loads(content)
@@ -31,7 +52,10 @@ def _parse_tool_payload(content: str) -> dict:
         return {"message": content}
 
 
-async def run_command_pipeline(text: str) -> AsyncGenerator[dict, None]:
+async def run_command_pipeline(
+    text: str, history: list[HistoryTurn] | None = None
+) -> AsyncGenerator[dict, None]:
+    task = _build_task(text, history or [])
     yield stage_event("intent_analysis", STAGE_MESSAGES["intent_analysis"])
 
     model_client = get_model_client()
@@ -65,7 +89,7 @@ async def run_command_pipeline(text: str) -> AsyncGenerator[dict, None]:
                 custom_message_types=[StructuredMessage[Plan]],
             )
 
-            async for message in team.run_stream(task=text):
+            async for message in team.run_stream(task=task):
                 if isinstance(message, TaskResult):
                     continue
 
