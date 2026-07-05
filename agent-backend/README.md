@@ -26,9 +26,14 @@
 ```
 GEMINI_API_KEY=              # 필수, Gemini API 키
 GEMINI_MODEL=gemini-2.0-flash
+PLANNER_MODEL=               # 선택, 미지정 시 GEMINI_MODEL
+EXECUTOR_MODEL=              # 선택, 미지정 시 GEMINI_MODEL
+SELECTOR_MODEL=              # 선택, 미지정 시 GEMINI_MODEL
 AGENT_PORT=8000
 CORS_ALLOW_ORIGIN=http://localhost:3000
 ```
+
+planner/executor/selector 세 에이전트는 각각 `PLANNER_MODEL`/`EXECUTOR_MODEL`/`SELECTOR_MODEL`로 다른 Gemini 모델을 지정할 수 있으며, 지정하지 않으면 `GEMINI_MODEL`을 공유합니다.
 
 MCP 서버 목록은 `mcp_servers.json`에서 관리하며, 파이프라인이 요청마다 모든 서버에 연결해 도구를 합쳐 planner에 전달합니다. `GET/POST/DELETE /mcp-servers`로 목록 조회·추가·삭제할 수 있고, 한 서버가 연결에 실패해도 나머지로 계속 동작합니다.
 
