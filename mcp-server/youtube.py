@@ -12,6 +12,14 @@ _YDL_OPTS = {
 
 
 def play_youtube(query: str) -> dict:
+    if not query.strip():
+        return {
+            "status": "fail",
+            "url": "",
+            "title": "",
+            "message": "검색어가 비어 있습니다. 재생할 곡명이나 검색어를 함께 말씀해 주세요.",
+        }
+
     try:
         with YoutubeDL(_YDL_OPTS) as ydl:
             info = ydl.extract_info(f"ytsearch1:{query}", download=False)
