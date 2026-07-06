@@ -1,7 +1,8 @@
 import logging
 import uuid
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -9,13 +10,27 @@ from autogen_ext.tools.mcp import McpWorkbench
 
 import config
 import mcp_config
+from llm_client import get_model_client
+from mcp_pool import McpPool
 from pipeline import run_command_pipeline, HistoryTurn
 from sse import format_sse, result_event
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("agent-backend")
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.pool = McpPool()
+    app.state.llm = get_model_client(config.PLANNER_MODEL)
+    try:
+        yield
+    finally:
+        await app.state.pool.aclose()
+        await app.state.llm.close()
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -84,6 +99,7 @@ async def add_mcp_server(body: ServerCreateRequest) -> dict:
         mcp_config.add_server(body.name, entry)
     except mcp_config.ConfigError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    await app.state.pool.invalidate()
     return {"status": "ok"}
 
 
@@ -93,17 +109,22 @@ async def delete_mcp_server(name: str) -> dict:
         mcp_config.remove_server(name)
     except mcp_config.ConfigError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    await app.state.pool.invalidate()
     return {"status": "ok"}
 
 
 @app.post("/command")
-async def command(body: CommandRequest) -> StreamingResponse:
+async def command(body: CommandRequest, request: Request) -> StreamingResponse:
     request_id = str(uuid.uuid4())
+    tools, router = await request.app.state.pool.acquire()
+    llm = request.app.state.llm
 
     async def event_stream():
         logger.info("[%s] 명령 수신: %s", request_id, body.text)
         try:
-            async for event in run_command_pipeline(body.text, body.history):
+            async for event in run_command_pipeline(
+                body.text, body.history, tools, router, llm
+            ):
                 logger.info("[%s] 이벤트: %s", request_id, event)
                 yield format_sse(event)
         except Exception:

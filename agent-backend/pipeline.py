@@ -1,18 +1,11 @@
 import json
-import logging
-from contextlib import AsyncExitStack
 from typing import AsyncGenerator
 
 from autogen_ext.tools.mcp import McpWorkbench
 from pydantic import BaseModel
 
 from agents import build_planner_agent
-from llm_client import get_model_client
-import config
-import mcp_config
 from sse import result_event, stage_event
-
-logger = logging.getLogger("agent-backend")
 
 STAGE_MESSAGES = {
     "intent_analysis": "의도를 분석하고 있습니다...",
@@ -68,40 +61,23 @@ async def _execute_plan(plan, tool_to_workbench) -> tuple[dict, bool]:
 
 
 async def run_command_pipeline(
-    text: str, history: list[HistoryTurn] | None = None
+    text: str,
+    history: list[HistoryTurn] | None,
+    tools: list[dict],
+    router: dict[str, McpWorkbench],
+    planner_client,
 ) -> AsyncGenerator[dict, None]:
     task = _build_task(text, history or [])
     yield stage_event("intent_analysis", STAGE_MESSAGES["intent_analysis"])
 
-    planner_client = get_model_client(config.PLANNER_MODEL)
-    last_payload: dict = {}
-    last_is_error = False
+    planner = build_planner_agent(planner_client, tools)
 
-    try:
-        async with AsyncExitStack() as stack:
-            tool_to_workbench: dict[str, McpWorkbench] = {}
-            tools: list[dict] = []
-            for name, entry in mcp_config.list_servers().items():
-                try:
-                    params = mcp_config.to_server_params(entry)
-                    workbench = await stack.enter_async_context(McpWorkbench(server_params=params))
-                    server_tools = await workbench.list_tools()
-                    for tool in server_tools:
-                        tool_to_workbench[tool["name"]] = workbench
-                    tools.extend(server_tools)
-                except Exception:
-                    logger.warning("MCP 서버 '%s' 연결 실패, 건너뜁니다.", name, exc_info=True)
+    yield stage_event("planning", STAGE_MESSAGES["planning"])
+    result = await planner.run(task=task)
+    plan = result.messages[-1].content
 
-            planner = build_planner_agent(planner_client, tools)
-
-            yield stage_event("planning", STAGE_MESSAGES["planning"])
-            result = await planner.run(task=task)
-            plan = result.messages[-1].content
-
-            yield stage_event("tool_call", STAGE_MESSAGES["tool_call"])
-            last_payload, last_is_error = await _execute_plan(plan, tool_to_workbench)
-    finally:
-        await planner_client.close()
+    yield stage_event("tool_call", STAGE_MESSAGES["tool_call"])
+    last_payload, last_is_error = await _execute_plan(plan, router)
 
     status = "fail" if last_is_error else last_payload.get("status", "fail")
     default_message = (
