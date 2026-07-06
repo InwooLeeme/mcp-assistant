@@ -25,8 +25,8 @@ flowchart LR
     end
 
     subgraph Backend["agent-backend (FastAPI)"]
-        API["POST /command\n{ text, history }"] --> Planner["planner\n계획 수립"]
-        Planner --> Executor["executor\n계획 실행"]
+        API["POST /command\n{ text, history }"] --> Planner["planner (LLM)\n계획 수립"]
+        Planner --> Runner["실행 루프 (코드)\nPlan 순차 집행"]
     end
 
     subgraph MCP["mcp-server (stdio)"]
@@ -39,16 +39,16 @@ flowchart LR
     end
 
     Client -- "POST /command" --> API
-    Executor -- "MCP 도구 호출" --> LaunchProgram
-    Executor -- "MCP 도구 호출" --> OpenUrl
-    Executor -- "MCP 도구 호출" --> PlayYoutube
-    Executor -- "MCP 도구 호출" --> ControlMedia
-    Executor -- "MCP 도구 호출" --> CloseProgram
-    Executor -- "MCP 도구 호출" --> OpenFolder
+    Runner -- "MCP 도구 호출" --> LaunchProgram
+    Runner -- "MCP 도구 호출" --> OpenUrl
+    Runner -- "MCP 도구 호출" --> PlayYoutube
+    Runner -- "MCP 도구 호출" --> ControlMedia
+    Runner -- "MCP 도구 호출" --> CloseProgram
+    Runner -- "MCP 도구 호출" --> OpenFolder
     API -. "SSE (stage/result)" .-> Client
 ```
 
-클라이언트는 활성 대화에 쌓인 이전 턴들을 `history`로 함께 실어 `/command`를 호출합니다. planner는 이 `history`를 "이전 대화" 맥락으로 참고해 어떤 도구를 어떤 인자로 부를지 계획을 세우고, executor가 그 계획을 MCP 서버에 실제로 실행시킵니다. 진행 상황과 결과는 SSE로 클라이언트에 실시간 스트리밍되고, 결과가 도착하면 클라이언트가 그 턴을 `localStorage`에 저장합니다. 대화·맥락의 주인은 클라이언트이며, Agent 백엔드는 요청 간 아무 상태도 보관하지 않는 무상태 서버입니다.
+클라이언트는 활성 대화에 쌓인 이전 턴들을 `history`로 함께 실어 `/command`를 호출합니다. planner는 이 `history`를 "이전 대화" 맥락으로 참고해 어떤 도구를 어떤 인자로 부를지 계획을 세우고, 실행 루프(코드)가 그 계획의 각 단계를 MCP 서버에 순서대로 실행시킵니다. 진행 상황과 결과는 SSE로 클라이언트에 실시간 스트리밍되고, 결과가 도착하면 클라이언트가 그 턴을 `localStorage`에 저장합니다. 대화·맥락의 주인은 클라이언트이며, Agent 백엔드는 요청 간 아무 상태도 보관하지 않는 무상태 서버입니다.
 
 ## 구성
 
@@ -58,7 +58,7 @@ agent-backend/  FastAPI + AutoGen(Gemini) Agent 백엔드 (localhost:8000)
 mcp-server/     로컬 네이티브 MCP 서버 — 실제 OS 액션 수행
 ```
 
-세 프로젝트가 어떻게 맞물리는지는 이렇습니다. 클라이언트에서 문장을 보내면 → Agent 백엔드가 SSE로 진행 상황을 스트리밍하면서 → 내부적으로 planner/executor 두 에이전트가 계획을 세우고 → executor가 stdio로 띄운 MCP 서버의 도구(`launch_program`, `open_url`, `play_youtube`, `control_media`, `close_program`, `open_folder`)를 실제로 호출합니다. 각 폴더의 README에 더 자세한 설명이 있습니다.
+세 프로젝트가 어떻게 맞물리는지는 이렇습니다. 클라이언트에서 문장을 보내면 → Agent 백엔드가 SSE로 진행 상황을 스트리밍하면서 → 내부적으로 planner 에이전트가 계획을 세우고 → 실행 루프가 stdio로 띄운 MCP 서버의 도구(`launch_program`, `open_url`, `play_youtube`, `control_media`, `close_program`, `open_folder`)를 순서대로 호출합니다. 각 폴더의 README에 더 자세한 설명이 있습니다.
 
 - [client/README.md](client/README.md)
 - [agent-backend/README.md](agent-backend/README.md)
@@ -103,9 +103,7 @@ mcp-server/     로컬 네이티브 MCP 서버 — 실제 OS 액션 수행
 |------|------|--------|------|
 | `GEMINI_API_KEY` | agent-backend/.env | (필수) | Gemini API 키 |
 | `GEMINI_MODEL` | agent-backend/.env | `gemini-2.0-flash` | 사용할 Gemini 모델 |
-| `PLANNER_MODEL` | agent-backend/.env | `GEMINI_MODEL` | planner 에이전트 전용 모델(선택) |
-| `EXECUTOR_MODEL` | agent-backend/.env | `GEMINI_MODEL` | executor 에이전트 전용 모델(선택) |
-| `SELECTOR_MODEL` | agent-backend/.env | `GEMINI_MODEL` | 발언자 선택 폴백 모델(선택). 순서가 고정이라 정상 흐름에선 호출되지 않음 |
+| `PLANNER_MODEL` | agent-backend/.env | `GEMINI_MODEL` | 유일한 LLM 에이전트(planner) 전용 모델(선택) |
 | `AGENT_PORT` | agent-backend/.env | `8000` | Agent 백엔드 포트 |
 | `CORS_ALLOW_ORIGIN` | agent-backend/.env | `http://localhost:3000` | 허용할 클라이언트 오리진 |
 | `NEXT_PUBLIC_AGENT_URL` | client/.env.local | `http://localhost:8000` | 클라이언트가 호출할 백엔드 URL |
