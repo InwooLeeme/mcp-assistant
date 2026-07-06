@@ -1,4 +1,4 @@
-from autogen_agentchat.agents import AssistantAgent, UserProxyAgent
+from autogen_agentchat.agents import AssistantAgent
 from pydantic import BaseModel
 
 PROGRAM_ALIASES: dict[str, str] = {
@@ -63,21 +63,3 @@ def build_planner_agent(model_client, tools: list[dict]) -> AssistantAgent:
         system_message=system_message,
         output_content_type=Plan,
     )
-
-
-def build_executor_agent(model_client, workbenches) -> AssistantAgent:
-    return AssistantAgent(
-        name="executor",
-        model_client=model_client,
-        workbench=workbenches,
-        reflect_on_tool_use=True,
-        system_message=(
-            "당신은 계획된 MCP 도구 호출을 실행하는 담당자입니다. "
-            "planner가 제시한 계획의 각 단계를 정확한 도구와 인자로 순서대로 호출하세요. "
-            "모든 단계 호출과 결과 보고가 끝나면 반드시 마지막에 TERMINATE 라고만 말하세요."
-        ),
-    )
-
-
-def build_user_proxy() -> UserProxyAgent:
-    return UserProxyAgent(name="user_proxy", input_func=lambda _: "")

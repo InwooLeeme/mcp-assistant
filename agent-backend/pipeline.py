@@ -1,21 +1,12 @@
 import json
 import logging
 from contextlib import AsyncExitStack
-from typing import AsyncGenerator, Sequence
+from typing import AsyncGenerator
 
-from autogen_agentchat.base import TaskResult
-from autogen_agentchat.conditions import TextMentionTermination
-from autogen_agentchat.messages import (
-    BaseAgentEvent,
-    BaseChatMessage,
-    StructuredMessage,
-    ToolCallExecutionEvent,
-)
-from autogen_agentchat.teams import SelectorGroupChat
 from autogen_ext.tools.mcp import McpWorkbench
 from pydantic import BaseModel
 
-from agents import Plan, build_executor_agent, build_planner_agent, build_user_proxy
+from agents import build_planner_agent
 from llm_client import get_model_client
 import config
 import mcp_config
@@ -58,23 +49,22 @@ def _parse_tool_payload(content: str) -> dict:
         return {"message": content}
 
 
-def _select_next_speaker(
-    messages: Sequence[BaseAgentEvent | BaseChatMessage],
-) -> str | None:
-    """다음 화자를 규칙으로 결정한다.
-
-    planner → executor 순서가 고정되어 있어 매 턴 LLM에게 다음 화자를 묻는
-    것은 낭비다. 정상 흐름에서 executor는 TERMINATE로 대화를 끝내므로 이후
-    선택은 필요 없고, 예외 상황에서만 None을 반환해 모델 기반 선택으로 폴백한다.
-    """
-    if not messages:
-        return "planner"
-    last_source = messages[-1].source
-    if last_source == "planner":
-        return "executor"
-    if last_source == "executor":
-        return None
-    return "planner"
+async def _execute_plan(plan, tool_to_workbench) -> tuple[dict, bool]:
+    if not plan.steps:
+        return {"status": "fail", "message": "수행할 작업을 찾지 못했습니다."}, True
+    last_payload: dict = {}
+    last_is_error = False
+    for step in plan.steps:
+        workbench = tool_to_workbench.get(step.tool)
+        if workbench is None:
+            return {"status": "fail", "message": f"알 수 없는 도구: {step.tool}"}, True
+        tool_result = await workbench.call_tool(step.tool, step.arguments)
+        text = tool_result.result[-1].content if tool_result.result else ""
+        last_payload = _parse_tool_payload(text)
+        last_is_error = tool_result.is_error
+        if last_is_error:
+            break
+    return last_payload, last_is_error
 
 
 async def run_command_pipeline(
@@ -84,59 +74,34 @@ async def run_command_pipeline(
     yield stage_event("intent_analysis", STAGE_MESSAGES["intent_analysis"])
 
     planner_client = get_model_client(config.PLANNER_MODEL)
-    executor_client = get_model_client(config.EXECUTOR_MODEL)
-    selector_client = get_model_client(config.SELECTOR_MODEL)
-    planning_emitted = False
-    tool_call_emitted = False
     last_payload: dict = {}
     last_is_error = False
 
     try:
         async with AsyncExitStack() as stack:
-            workbenches = []
+            tool_to_workbench: dict[str, McpWorkbench] = {}
             tools: list[dict] = []
             for name, entry in mcp_config.list_servers().items():
                 try:
                     params = mcp_config.to_server_params(entry)
                     workbench = await stack.enter_async_context(McpWorkbench(server_params=params))
                     server_tools = await workbench.list_tools()
-                    workbenches.append(workbench)
+                    for tool in server_tools:
+                        tool_to_workbench[tool["name"]] = workbench
                     tools.extend(server_tools)
                 except Exception:
                     logger.warning("MCP 서버 '%s' 연결 실패, 건너뜁니다.", name, exc_info=True)
 
             planner = build_planner_agent(planner_client, tools)
-            executor = build_executor_agent(executor_client, workbenches)
-            user_proxy = build_user_proxy()
 
-            team = SelectorGroupChat(
-                [user_proxy, planner, executor],
-                model_client=selector_client,
-                selector_func=_select_next_speaker,
-                termination_condition=TextMentionTermination("TERMINATE"),
-                custom_message_types=[StructuredMessage[Plan]],
-            )
+            yield stage_event("planning", STAGE_MESSAGES["planning"])
+            result = await planner.run(task=task)
+            plan = result.messages[-1].content
 
-            async for message in team.run_stream(task=task):
-                if isinstance(message, TaskResult):
-                    continue
-
-                source = getattr(message, "source", "")
-                if source == "planner" and not planning_emitted:
-                    yield stage_event("planning", STAGE_MESSAGES["planning"])
-                    planning_emitted = True
-                if source == "executor" and not tool_call_emitted:
-                    yield stage_event("tool_call", STAGE_MESSAGES["tool_call"])
-                    tool_call_emitted = True
-
-                if isinstance(message, ToolCallExecutionEvent):
-                    result = message.content[-1]
-                    last_payload = _parse_tool_payload(result.content)
-                    last_is_error = result.is_error
+            yield stage_event("tool_call", STAGE_MESSAGES["tool_call"])
+            last_payload, last_is_error = await _execute_plan(plan, tool_to_workbench)
     finally:
         await planner_client.close()
-        await executor_client.close()
-        await selector_client.close()
 
     status = "fail" if last_is_error else last_payload.get("status", "fail")
     default_message = (
