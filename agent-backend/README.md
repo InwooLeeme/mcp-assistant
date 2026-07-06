@@ -9,7 +9,7 @@
 1. **planner** — "카페 음악 재생해 줘"라는 문장을 보고 `play_youtube(query="카페 음악")` 같은 도구 호출 계획을 세웁니다. 응답은 `Plan`이라는 고정 스키마(`agents.py`의 `ToolCallStep`, `Plan`)로만 나오도록 강제되어 있어서, LLM이 엉뚱한 형식으로 답할 여지를 줄였습니다. "크롬 열고 뉴스 보여줘" 같은 복합 명령은 여러 단계로 쪼개서 계획합니다.
 2. **실행 루프(코드)** — planner가 세운 Plan의 각 단계를 `McpWorkbench`(`call_tool`)를 통해 MCP 서버의 도구로 순서대로 실행합니다. 어떤 단계가 실패하면 즉시 중단하고 그 결과를 보고합니다. 도구 재선택이나 결과 요약을 위한 별도 LLM 호출은 없습니다.
 
-이 과정에서 `pipeline.py`는 각 에이전트가 말을 시작하는 시점을 감지해 `intent_analysis` → `planning` → `tool_call` 순서로 stage 이벤트를 클라이언트에 흘려보내고, 마지막 도구 호출 결과를 하나의 `result` 이벤트로 정리해서 보냅니다.
+이 과정에서 `pipeline.py`는 `intent_analysis` → `planning` → `tool_call` 순서로 정해진 지점마다 stage 이벤트를 클라이언트에 흘려보내고, 마지막 도구 호출 결과를 하나의 `result` 이벤트로 정리해서 보냅니다.
 
 ## 파일별 역할
 
