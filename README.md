@@ -1,156 +1,225 @@
 # MCP Assistant
 
-텍스트로 명령을 내리면 PC를 대신 조작해주는 개인 비서입니다. "카카오톡 실행해 줘", "뉴스 페이지 열어줘", "카페 음악 재생해 줘" 같은 문장을 입력하면, LLM이 의도를 파악해 실제 프로그램 실행·URL 열기·유튜브 재생 같은 OS 액션으로 옮겨줍니다.
+MCP Assistant는 자연어 명령으로 로컬 PC 작업을 실행하는 Windows 데스크톱 앱입니다. 사용자가 "카카오톡 실행해 줘", "네이버 열어 줘", "카페 음악 재생해 줘"처럼 입력하면 LLM이 실행 계획을 만들고, MCP 서버가 실제 OS 동작을 수행합니다.
+
+현재 구조는 Tauri 데스크톱 앱을 기준으로 합니다. `client`는 정적 Next.js UI로 빌드되고, `agent-backend`와 `mcp-server`는 PyInstaller 실행 파일로 패키징되어 Tauri 리소스로 포함됩니다.
 
 ![MCP Assistant 데모 화면](assets/demo.png)
 
-## 왜 이런 구조인가
-
-일반적인 챗봇은 텍스트로 답만 하지만, 이 프로젝트는 실제로 로컬 PC에 손을 대야 합니다(`os.startfile`, `webbrowser.open` 등). 그래서 "LLM이 도구를 호출하는 부분"과 "도구가 실제로 OS를 건드리는 부분"을 완전히 분리했습니다.
-
-- Agent 백엔드는 사용자 문장을 해석하고 어떤 도구를 어떤 순서로 부를지 계획만 세웁니다.
-- MCP 서버는 그 계획을 받아 실제로 프로그램을 켜고, 브라우저를 열고, 유튜브를 재생하는 실행 담당입니다.
-
-이렇게 나눠두면 Agent 백엔드는 순수하게 "무엇을 할지 판단하는" 역할에 집중할 수 있고, MCP 서버는 나중에 다른 LLM이나 다른 클라이언트에서도 그대로 재사용할 수 있습니다.
-
-## 아키텍처
-
-Tauri 데스크톱 앱으로 빌드하면 `client`(정적 export)가 창의 프론트엔드가 되고, `agent-backend`/`mcp-server`는 앱 시작 시 자동으로 실행되는 리소스 프로세스가 된다(`src-tauri/`).
+## 핵심 구조
 
 ```mermaid
 flowchart LR
-    User(["사용자"]) -- "텍스트 명령" --> Client
-
-    subgraph Client["client (Next.js)"]
-        Sidebar["대화 사이드바\n(생성·전환·삭제)"] --> Form["명령 입력창"]
-        Form -- "활성 대화의 이전 턴" --> Store[("대화 저장소\nlocalStorage")]
-    end
-
-    subgraph Backend["agent-backend (FastAPI)"]
-        API["POST /command\n{ text, history }"] --> Planner["planner (LLM)\n계획 수립"]
-        Planner -- "Plan(steps)" --> Runner["실행 루프(코드)\n순차 집행"]
-    end
-
-    subgraph MCP["mcp-server (stdio)"]
-        LaunchProgram["launch_program"]
-        OpenUrl["open_url"]
-        PlayYoutube["play_youtube"]
-        ControlMedia["control_media"]
-        CloseProgram["close_program"]
-        OpenFolder["open_folder"]
-    end
-
-    Client -- "POST /command" --> API
-    Runner -- "도구 호출" --> MCP
-    API -. "SSE (stage/result)" .-> Client
+    User["사용자"] --> Client["Tauri WebView\nNext.js 정적 UI"]
+    Client -->|POST /command| Backend["agent-backend\nFastAPI + AutoGen"]
+    Backend -->|도구 호출 계획| MCP["mcp-server\n로컬 MCP 도구"]
+    MCP --> OS["Windows 프로그램\n브라우저 / 미디어 / 폴더"]
+    Backend -->|SSE 진행 이벤트| Client
 ```
 
-클라이언트는 활성 대화에 쌓인 이전 턴들을 `history`로 함께 실어 `/command`를 호출합니다. planner는 이 `history`를 "이전 대화" 맥락으로 참고해 어떤 도구를 어떤 인자로 부를지 계획을 세우고, 파이썬 코드가 그 계획의 각 단계를 MCP 서버에 순서대로 넘겨 실행합니다. 진행 상황과 결과는 SSE로 클라이언트에 실시간 스트리밍되고, 결과가 도착하면 클라이언트가 그 턴을 `localStorage`에 저장합니다. 대화·맥락의 주인은 클라이언트이며, Agent 백엔드는 요청 간 아무 상태도 보관하지 않는 무상태 서버입니다.
+- `client`: Next.js 16 기반 화면입니다. 명령 입력, 대화 목록, MCP 서버 관리 UI를 담당합니다.
+- `src-tauri`: Tauri 앱 셸입니다. 창을 띄우고 `agent-backend.exe`를 자식 프로세스로 실행합니다.
+- `agent-backend`: FastAPI 서버입니다. LLM으로 실행 계획을 만들고 MCP 서버 도구를 호출합니다.
+- `mcp-server`: Windows 로컬 작업을 실행하는 MCP 서버입니다.
 
-## 구성
+## 디렉터리
 
+```text
+client/         Next.js 정적 UI
+src-tauri/      Tauri 데스크톱 앱 설정과 Rust 런타임
+agent-backend/  FastAPI + AutoGen 기반 에이전트 백엔드
+mcp-server/     Windows 로컬 작업 MCP 서버
+assets/         README 이미지 등 정적 자료
+dist/           PyInstaller 빌드 산출물
+build/          PyInstaller 중간 산출물
 ```
-client/         Next.js 텍스트 입력 UI (localhost:3000) — 여러 대화를 만들어 이어서 대화할 수 있고, 각 대화는 브라우저 localStorage에 저장됩니다.
-agent-backend/  FastAPI + AutoGen(Gemini) Agent 백엔드 (localhost:8000)
-mcp-server/     로컬 네이티브 MCP 서버 — 실제 OS 액션 수행
-src-tauri/      Tauri 데스크톱 셸 — client/out을 창으로 띄우고 agent-backend/mcp-server exe를 리소스로 번들링·자동 실행
-```
-
-세 프로젝트가 어떻게 맞물리는지는 이렇습니다. 클라이언트에서 문장을 보내면 Agent 백엔드가 SSE로 진행 상황을 스트리밍하면서, 내부적으로 planner 에이전트가 계획을 세우고, 그 계획에 따라 stdio로 띄운 MCP 서버의 도구(`launch_program`, `open_url`, `play_youtube`, `control_media`, `close_program`, `open_folder`)를 순서대로 호출합니다. 각 폴더의 README에 더 자세한 설명이 있습니다.
-
-- [client/README.md](client/README.md)
-- [agent-backend/README.md](agent-backend/README.md)
-- [mcp-server/README.md](mcp-server/README.md)
 
 ## 사전 요구사항
 
-- **Windows** — `mcp-server`가 `winreg`, `os.startfile` 등 Windows 전용 API를 직접 사용합니다. macOS/Linux에서는 동작하지 않습니다.
-- **Python 3** — `agent-backend`, `mcp-server` 둘 다 필요합니다(레포에 최소 버전이 고정되어 있지 않습니다).
-- **Node.js** — `client`(Next.js 16) 실행에 필요합니다. Next.js 16의 요구 버전을 따르시면 됩니다.
-- **Gemini API 키** — [Google AI Studio](https://aistudio.google.com/)에서 발급.
-
-## MCP 서버 결합
-
-`agent-backend/mcp_servers.json`(Claude Desktop 표준 `mcpServers` 형식)에 서버를 등록하면 그 도구를 비서가 사용할 수 있습니다. 로컬 mcp-server도 `local` 항목으로 등록되어 있습니다.
-
-```json
-{
-  "mcpServers": {
-    "local": { "command": "...python.exe", "args": ["...server.py"] },
-    "filesystem": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\me\\Downloads"] }
-  }
-}
-```
-
-- `command`+`args` → 로컬(stdio) 서버, `url` → 원격(HTTP) 서버.
-- 클라이언트 `/servers` 페이지에서 목록 확인·추가·삭제가 가능하고, 메인 화면(`/`)의 "+ MCP 추가" 버튼으로 모달을 열어 페이지 이동 없이 바로 추가할 수도 있습니다.
-- ⚠️ **보안:** `/servers`에서 서버를 추가한다는 것은 임의의 명령을 호스트에서 실행시킨다는 의미입니다. 신뢰할 수 있는 서버만 등록하세요. Agent 백엔드는 `127.0.0.1`(루프백)에만 바인딩되어 외부 네트워크에서는 접근할 수 없지만, `/mcp-servers` API 자체에는 인증이 없으므로 이 PC를 사용하는 다른 프로세스나 사용자도 호출할 수 있다는 점을 유의하세요.
-
-## 대화 기억 & 여러 대화 관리
-
-메인 화면 왼쪽 사이드바에서 여러 대화를 만들고 이어서 대화할 수 있습니다.
-
-- **맥락 이어받기** — 같은 대화 안에서는 "메모장 열어줘" 다음에 "그거 닫아줘"처럼 이전 명령을 이어받는 후속 명령이 가능합니다. 클라이언트가 활성 대화의 이전 턴들을 `history`로 함께 보내면, Agent 백엔드가 이를 "이전 대화" 프리앰블로 조립해 planner에 전달합니다.
-- **여러 대화 + 전환** — 사이드바의 "+ 새 대화"로 새 맥락을 시작하거나, 목록에서 기존 대화를 클릭해 전환할 수 있습니다. 다른 대화로 전환하면 `history`도 그 대화의 턴으로 바뀌므로 대화 간 맥락이 섞이지 않습니다.
-- **영속화** — 대화 목록은 브라우저 `localStorage`에 저장됩니다. 새로고침하거나 브라우저를 껐다 켜도 유지되며, 서버에는 아무것도 저장되지 않습니다(Agent 백엔드는 여전히 무상태). 턴이 하나도 없는 빈 대화는 저장하지 않습니다.
-- **제목 · 삭제** — 대화 제목은 첫 명령에서 자동 생성됩니다(이름 변경 기능은 없음). 사이드바에서 대화별로 삭제할 수 있습니다.
+- Windows
+- Python 3
+- Node.js
+- Rust 및 Tauri 빌드 환경
+- Gemini API 키
 
 ## 환경변수
 
-| 변수 | 위치 | 기본값 | 설명 |
-|------|------|--------|------|
-| `GEMINI_API_KEY` | agent-backend/.env (개발) / `%APPDATA%\mcp-assistant\.env` (Tauri 빌드) | (필수) | Gemini API 키 |
-| `GEMINI_MODEL` | agent-backend/.env (개발) / `%APPDATA%\mcp-assistant\.env` (Tauri 빌드) | `gemini-2.0-flash` | 사용할 Gemini 모델 |
-| `PLANNER_MODEL` | agent-backend/.env (개발) / `%APPDATA%\mcp-assistant\.env` (Tauri 빌드) | `GEMINI_MODEL` | 유일한 LLM 에이전트(planner) 전용 모델(선택) |
-| `AGENT_PORT` | agent-backend/.env (개발) / `%APPDATA%\mcp-assistant\.env` (Tauri 빌드) | `8000` | Agent 백엔드 포트 |
-| `CORS_ALLOW_ORIGIN` | agent-backend/.env (개발) / `%APPDATA%\mcp-assistant\.env` (Tauri 빌드) | `http://localhost:3000` | 허용할 클라이언트 오리진 |
-| `NEXT_PUBLIC_AGENT_URL` | client/.env.local | `http://localhost:8000` | 클라이언트가 호출할 백엔드 URL |
+개발 환경과 설치형 Tauri 앱의 환경변수 위치가 다릅니다.
 
-## 실행
+| 변수 | 개발 위치 | 설치형 Tauri 위치 | 기본값 | 설명 |
+| --- | --- | --- | --- | --- |
+| `GEMINI_API_KEY` | `agent-backend/.env` | `%APPDATA%\mcp-assistant\.env` | 필수 | Gemini API 키 |
+| `GEMINI_MODEL` | `agent-backend/.env` | `%APPDATA%\mcp-assistant\.env` | `gemini-2.0-flash` | 기본 Gemini 모델 |
+| `PLANNER_MODEL` | `agent-backend/.env` | `%APPDATA%\mcp-assistant\.env` | `GEMINI_MODEL` | planner 전용 모델 |
+| `AGENT_PORT` | `agent-backend/.env` | `%APPDATA%\mcp-assistant\.env` | `8000` | 백엔드 포트 |
+| `CORS_ALLOW_ORIGIN` | `agent-backend/.env` | `%APPDATA%\mcp-assistant\.env` | `http://localhost:3000` | 허용할 프론트엔드 origin |
+| `NEXT_PUBLIC_AGENT_URL` | `client/.env.local` | 빌드 시 정적 UI에 포함 | `http://localhost:8000` | 클라이언트가 호출할 백엔드 URL |
 
-1. `.env.example`을 참고해 `agent-backend/.env`와 `client/.env.local`을 작성합니다.
-2. Agent 백엔드 + MCP 서버 준비·기동:
+설치형 Tauri 앱은 `.env`를 설치 파일에 포함하지 않습니다. 실행 시 Tauri 런타임이 `%APPDATA%\mcp-assistant\.env`를 읽어 `agent-backend.exe`의 환경변수로 주입합니다.
+
+설치형 앱 실행 전에 다음 파일을 만들어야 합니다.
+
+```text
+%APPDATA%\mcp-assistant\.env
+```
+
+예시:
+
+```env
+GEMINI_API_KEY=발급받은_API_키
+GEMINI_MODEL=gemini-2.5-flash
+AGENT_PORT=8000
+```
+
+Tauri 설치본에서 CORS 오류가 발생하면 `CORS_ALLOW_ORIGIN`을 실제 WebView origin에 맞춰 조정해야 합니다.
+
+## 개발 실행
+
+개발 중에는 백엔드와 프론트엔드를 분리해서 실행합니다.
+
+1. 백엔드 환경변수를 작성합니다.
+
+   ```powershell
+   Copy-Item .env.example agent-backend/.env
+   ```
+
+   `agent-backend/.env`의 `GEMINI_API_KEY` 값을 채웁니다.
+
+2. 백엔드와 MCP 서버 가상환경을 준비하고 백엔드를 실행합니다.
+
    ```powershell
    ./run.ps1
    ```
-3. 새 터미널에서 클라이언트 기동:
+
+3. 다른 터미널에서 클라이언트를 실행합니다.
+
    ```powershell
    npm --prefix client install
    npm --prefix client run dev
    ```
-4. 브라우저에서 `http://localhost:3000` 접속.
 
-## 데스크톱 앱으로 빌드 (Tauri)
+4. 브라우저에서 접속합니다.
 
-Python/Node 설치 없이 실행 가능한 설치파일을 만들려면:
+   ```text
+   http://localhost:3000
+   ```
+
+## Tauri 개발 실행
+
+Tauri 창까지 확인하려면 먼저 백엔드와 MCP 서버 실행 파일을 만들어야 합니다.
+
+처음 한 번 의존성을 준비합니다.
+
+```powershell
+npm install
+npm --prefix client install
+python -m venv agent-backend/.venv
+.\agent-backend\.venv\Scripts\python.exe -m pip install -r agent-backend/requirements.txt
+python -m venv mcp-server/.venv
+.\mcp-server\.venv\Scripts\python.exe -m pip install -r mcp-server/requirements.txt
+```
+
+그다음 실행 파일을 만들고 Tauri 개발 모드를 실행합니다.
 
 ```powershell
 ./mcp-server/build.ps1
 ./agent-backend/build.ps1
-npm run build --prefix client
+npm run tauri dev
+```
+
+Tauri 개발 실행도 `%APPDATA%\mcp-assistant\.env`를 사용합니다.
+
+## 설치 파일 빌드
+
+Tauri 설치 파일을 만들 때는 Python 백엔드와 MCP 서버를 먼저 PyInstaller로 패키징한 뒤 Tauri 빌드를 실행합니다.
+
+처음 한 번 의존성을 준비합니다.
+
+```powershell
+npm install
+npm --prefix client install
+python -m venv agent-backend/.venv
+.\agent-backend\.venv\Scripts\python.exe -m pip install -r agent-backend/requirements.txt
+python -m venv mcp-server/.venv
+.\mcp-server\.venv\Scripts\python.exe -m pip install -r mcp-server/requirements.txt
+```
+
+그다음 설치 파일을 빌드합니다.
+
+```powershell
+./mcp-server/build.ps1
+./agent-backend/build.ps1
 npm run tauri build
 ```
 
-`src-tauri/target/release/bundle/` 아래 nsis(exe) 또는 msi 설치파일이 생성됩니다.
+산출물은 다음 경로 아래에 생성됩니다.
 
-`.env`는 설치파일에 포함되지 않습니다(평문 번들 방지). 설치 후 최초 실행 전에 아래 경로에 파일을 직접 만들어야 합니다:
-
-```
-%APPDATA%\mcp-assistant\.env
+```text
+src-tauri/target/release/bundle/
 ```
 
+`npm run tauri build`는 `src-tauri/tauri.conf.json`의 `beforeBuildCommand`를 통해 `client` 정적 빌드를 함께 실행합니다.
+
+## 번들링 정책
+
+Tauri 설치 파일에는 다음 리소스만 포함합니다.
+
+- `dist/agent-backend/agent-backend.exe`
+- `dist/agent-backend/_internal/`
+- `dist/agent-backend/mcp_servers.json`
+- `dist/mcp-server/`
+- `client/out`
+
+다음 파일은 설치 파일에 포함하지 않습니다.
+
+- `agent-backend/.env`
+- `dist/agent-backend/.env`
+- `client/.env.local`
+
+민감한 값은 반드시 `%APPDATA%\mcp-assistant\.env`에 둡니다.
+
+## MCP 서버 관리
+
+기본 MCP 서버는 `agent-backend/mcp_servers.json`의 `local` 항목입니다. 설치형 빌드에서는 이 항목이 번들된 `mcp-server.exe`를 가리키도록 런타임에 보정됩니다.
+
+백엔드는 MCP 서버 목록 관리를 위해 다음 API를 제공합니다.
+
+- `GET /mcp-servers`: 등록된 MCP 서버 목록 조회
+- `POST /mcp-servers`: MCP 서버 추가
+- `DELETE /mcp-servers/{name}`: MCP 서버 삭제
+
+클라이언트의 MCP 서버 관리 화면에서도 같은 API를 사용합니다. 신뢰할 수 없는 명령이나 원격 MCP 서버를 등록하면 로컬 PC에서 의도하지 않은 작업이 실행될 수 있으므로 주의해야 합니다.
+
+## 주요 API
+
+- `GET /health`: 백엔드 상태 확인
+- `POST /command`: 자연어 명령 실행 요청, SSE 스트림 반환
+- `GET /mcp-servers`: MCP 서버 목록 조회
+- `POST /mcp-servers`: MCP 서버 추가
+- `DELETE /mcp-servers/{name}`: MCP 서버 삭제
+
+`POST /command` 요청 예시:
+
+```json
+{
+  "text": "카페 음악 재생해 줘",
+  "history": []
+}
 ```
-GEMINI_API_KEY=발급받은_API_키
-```
 
-이 파일이 없으면 앱 실행 시 안내 대화상자가 뜨고 종료됩니다. `GEMINI_MODEL`, `AGENT_PORT` 같은 추가 설정도 Tauri 빌드에서는 이 파일에 넣어야 하며, `agent-backend/.env`는 번들되지 않습니다.
+## 예시 명령
 
-## 데모 명령
+- `카카오톡 실행해 줘`
+- `네이버 열어 줘`
+- `카페 음악 재생해 줘`
+- `볼륨 올려 줘`
+- `메모장 꺼 줘`
+- `다운로드 폴더 열어 줘`
 
-- `카카오톡 실행해 줘` — 설치된 프로그램 실행
-- `뉴스 페이지 열어줘` — URL 열기
-- `카페 음악 재생해 줘` — 유튜브 검색 후 재생
-- `크롬 열고 뉴스 보여줘` — 위 동작을 여러 단계로 묶은 복합 명령
-- `볼륨 올려줘` — 미디어/볼륨 제어
-- `메모장 닫아줘` — 실행 중인 프로그램 종료
-- `다운로드 폴더 열어줘` — 주요 폴더 열기
+## 문제 해결
+
+- 앱 시작 시 API 키 파일 오류가 나오면 `%APPDATA%\mcp-assistant\.env`가 있는지 확인합니다.
+- `GEMINI_API_KEY`가 없으면 `agent-backend`가 시작되지 않습니다.
+- 개발 모드에서 클라이언트가 백엔드에 연결하지 못하면 `./run.ps1`이 실행 중인지 확인합니다.
+- 설치본에서 클라이언트 요청이 CORS로 막히면 `%APPDATA%\mcp-assistant\.env`의 `CORS_ALLOW_ORIGIN` 값을 조정합니다.
+- Tauri 빌드 전에 `dist/agent-backend/agent-backend.exe`와 `dist/mcp-server/mcp-server.exe`가 생성되어 있어야 합니다.
