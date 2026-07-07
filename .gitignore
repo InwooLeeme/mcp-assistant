@@ -5,6 +5,9 @@ docs/*
 // claude
 CLAUDE.local.md
 
+// codex
+AGENTS.md
+
 // client
 client/CLAUDE.md
 client/AGENTS.md

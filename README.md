@@ -99,11 +99,11 @@ src-tauri/      Tauri 데스크톱 셸 — client/out을 창으로 띄우고 age
 
 | 변수 | 위치 | 기본값 | 설명 |
 |------|------|--------|------|
-| `GEMINI_API_KEY` | agent-backend/.env | (필수) | Gemini API 키 |
-| `GEMINI_MODEL` | agent-backend/.env | `gemini-2.0-flash` | 사용할 Gemini 모델 |
-| `PLANNER_MODEL` | agent-backend/.env | `GEMINI_MODEL` | 유일한 LLM 에이전트(planner) 전용 모델(선택) |
-| `AGENT_PORT` | agent-backend/.env | `8000` | Agent 백엔드 포트 |
-| `CORS_ALLOW_ORIGIN` | agent-backend/.env | `http://localhost:3000` | 허용할 클라이언트 오리진 |
+| `GEMINI_API_KEY` | agent-backend/.env (개발) / `%APPDATA%\mcp-assistant\.env` (Tauri 빌드) | (필수) | Gemini API 키 |
+| `GEMINI_MODEL` | agent-backend/.env (개발) / `%APPDATA%\mcp-assistant\.env` (Tauri 빌드) | `gemini-2.0-flash` | 사용할 Gemini 모델 |
+| `PLANNER_MODEL` | agent-backend/.env (개발) / `%APPDATA%\mcp-assistant\.env` (Tauri 빌드) | `GEMINI_MODEL` | 유일한 LLM 에이전트(planner) 전용 모델(선택) |
+| `AGENT_PORT` | agent-backend/.env (개발) / `%APPDATA%\mcp-assistant\.env` (Tauri 빌드) | `8000` | Agent 백엔드 포트 |
+| `CORS_ALLOW_ORIGIN` | agent-backend/.env (개발) / `%APPDATA%\mcp-assistant\.env` (Tauri 빌드) | `http://localhost:3000` | 허용할 클라이언트 오리진 |
 | `NEXT_PUBLIC_AGENT_URL` | client/.env.local | `http://localhost:8000` | 클라이언트가 호출할 백엔드 URL |
 
 ## 실행
@@ -131,7 +131,19 @@ npm run build --prefix client
 npm run tauri build
 ```
 
-`src-tauri/target/release/bundle/` 아래 nsis(exe) 또는 msi 설치파일이 생성됩니다. 빌드 전에 `agent-backend/.env`에 `GEMINI_API_KEY`를 반드시 채워야 합니다(설치 후 사용자가 직접 수정하는 기능은 없습니다).
+`src-tauri/target/release/bundle/` 아래 nsis(exe) 또는 msi 설치파일이 생성됩니다.
+
+`.env`는 설치파일에 포함되지 않습니다(평문 번들 방지). 설치 후 최초 실행 전에 아래 경로에 파일을 직접 만들어야 합니다:
+
+```
+%APPDATA%\mcp-assistant\.env
+```
+
+```
+GEMINI_API_KEY=발급받은_API_키
+```
+
+이 파일이 없으면 앱 실행 시 안내 대화상자가 뜨고 종료됩니다. `GEMINI_MODEL`, `AGENT_PORT` 같은 추가 설정도 Tauri 빌드에서는 이 파일에 넣어야 하며, `agent-backend/.env`는 번들되지 않습니다.
 
 ## 데모 명령
 

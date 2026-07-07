@@ -29,7 +29,9 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../dist/agent-backend/": "agent-backend/",
+      "../dist/agent-backend/_internal/": "agent-backend/_internal/",
+      "../dist/agent-backend/agent-backend.exe": "agent-backend/agent-backend.exe",
+      "../dist/agent-backend/mcp_servers.json": "agent-backend/mcp_servers.json",
       "../dist/mcp-server/": "mcp-server/"
     }
   }
