@@ -1,0 +1,15 @@
+[package]
+name = "mcp-assistant"
+version = "0.1.0"
+description = "MCP Assistant desktop shell"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[[bin]]
+name = "mcp-assistant"
+path = "src/main.rs"
