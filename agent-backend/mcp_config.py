@@ -1,6 +1,9 @@
+import ipaddress
 import json
+import socket
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 import config
 from autogen_ext.tools.mcp import (
@@ -15,6 +18,23 @@ LOCAL_SERVER_NAME = "local"
 
 class ConfigError(Exception):
     pass
+
+
+def _validate_remote_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ConfigError("url은 http 또는 https만 허용됩니다.")
+    host = parsed.hostname
+    if not host:
+        raise ConfigError("url에서 호스트를 확인할 수 없습니다.")
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        raise ConfigError("url 호스트를 해석할 수 없습니다.")
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved:
+            raise ConfigError("사설/로컬 주소를 가리키는 url은 등록할 수 없습니다.")
 
 
 def _resolve_local_entry() -> dict:
@@ -63,6 +83,8 @@ def to_server_params(entry: dict) -> McpServerParams:
 def add_server(name: str, entry: dict) -> None:
     if not name:
         raise ConfigError("서버 이름이 필요합니다.")
+    if "url" in entry:
+        _validate_remote_url(entry["url"])
     to_server_params(entry)
     data = _read()
     servers = data.setdefault("mcpServers", {})
