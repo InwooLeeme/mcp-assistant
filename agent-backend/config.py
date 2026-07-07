@@ -18,3 +18,4 @@ GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 AGENT_PORT = int(os.getenv("AGENT_PORT", "8000"))
 CORS_ALLOW_ORIGIN = os.getenv("CORS_ALLOW_ORIGIN", "http://localhost:3000")
+AGENT_TOKEN = os.getenv("AGENT_TOKEN")

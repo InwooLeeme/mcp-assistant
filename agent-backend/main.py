@@ -1,8 +1,9 @@
 import logging
+import secrets
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -40,6 +41,14 @@ app.add_middleware(
 )
 
 
+async def require_auth(authorization: str | None = Header(default=None)) -> None:
+    if not config.AGENT_TOKEN:
+        raise HTTPException(status_code=503, detail="서버 인증이 구성되지 않았습니다.")
+    expected = f"Bearer {config.AGENT_TOKEN}"
+    if authorization is None or not secrets.compare_digest(authorization, expected):
+        raise HTTPException(status_code=401, detail="인증에 실패했습니다.")
+
+
 class CommandRequest(BaseModel):
     text: str
     history: list[HistoryTurn] = []
@@ -62,7 +71,7 @@ def _entry_transport(entry: dict) -> str:
     return "url" if "url" in entry else "stdio"
 
 
-@app.get("/mcp-servers")
+@app.get("/mcp-servers", dependencies=[Depends(require_auth)])
 async def list_mcp_servers() -> dict:
     servers = []
     for name, entry in mcp_config.list_servers().items():
@@ -85,7 +94,7 @@ async def list_mcp_servers() -> dict:
     return {"servers": servers}
 
 
-@app.post("/mcp-servers")
+@app.post("/mcp-servers", dependencies=[Depends(require_auth)])
 async def add_mcp_server(body: ServerCreateRequest) -> dict:
     entry: dict = {}
     if body.url:
@@ -103,7 +112,7 @@ async def add_mcp_server(body: ServerCreateRequest) -> dict:
     return {"status": "ok"}
 
 
-@app.delete("/mcp-servers/{name}")
+@app.delete("/mcp-servers/{name}", dependencies=[Depends(require_auth)])
 async def delete_mcp_server(name: str) -> dict:
     try:
         mcp_config.remove_server(name)
@@ -113,7 +122,7 @@ async def delete_mcp_server(name: str) -> dict:
     return {"status": "ok"}
 
 
-@app.post("/command")
+@app.post("/command", dependencies=[Depends(require_auth)])
 async def command(body: CommandRequest, request: Request) -> StreamingResponse:
     request_id = str(uuid.uuid4())
     tools, router = await request.app.state.pool.acquire()
