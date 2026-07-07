@@ -15,6 +15,8 @@
 
 ## 아키텍처
 
+Tauri 데스크톱 앱으로 빌드하면 `client`(정적 export)가 창의 프론트엔드가 되고, `agent-backend`/`mcp-server`는 앱 시작 시 자동으로 실행되는 리소스 프로세스가 된다(`src-tauri/`).
+
 ```mermaid
 flowchart LR
     User(["사용자"]) -- "텍스트 명령" --> Client
@@ -51,6 +53,7 @@ flowchart LR
 client/         Next.js 텍스트 입력 UI (localhost:3000) — 여러 대화를 만들어 이어서 대화할 수 있고, 각 대화는 브라우저 localStorage에 저장됩니다.
 agent-backend/  FastAPI + AutoGen(Gemini) Agent 백엔드 (localhost:8000)
 mcp-server/     로컬 네이티브 MCP 서버 — 실제 OS 액션 수행
+src-tauri/      Tauri 데스크톱 셸 — client/out을 창으로 띄우고 agent-backend/mcp-server exe를 리소스로 번들링·자동 실행
 ```
 
 세 프로젝트가 어떻게 맞물리는지는 이렇습니다. 클라이언트에서 문장을 보내면 Agent 백엔드가 SSE로 진행 상황을 스트리밍하면서, 내부적으로 planner 에이전트가 계획을 세우고, 그 계획에 따라 stdio로 띄운 MCP 서버의 도구(`launch_program`, `open_url`, `play_youtube`, `control_media`, `close_program`, `open_folder`)를 순서대로 호출합니다. 각 폴더의 README에 더 자세한 설명이 있습니다.
@@ -116,6 +119,19 @@ mcp-server/     로컬 네이티브 MCP 서버 — 실제 OS 액션 수행
    npm --prefix client run dev
    ```
 4. 브라우저에서 `http://localhost:3000` 접속.
+
+## 데스크톱 앱으로 빌드 (Tauri)
+
+Python/Node 설치 없이 실행 가능한 설치파일을 만들려면:
+
+```powershell
+./mcp-server/build.ps1
+./agent-backend/build.ps1
+npm run build --prefix client
+npm run tauri build
+```
+
+`src-tauri/target/release/bundle/` 아래 nsis(exe) 또는 msi 설치파일이 생성됩니다. 빌드 전에 `agent-backend/.env`에 `GEMINI_API_KEY`를 반드시 채워야 합니다(설치 후 사용자가 직접 수정하는 기능은 없습니다).
 
 ## 데모 명령
 
