@@ -28,3 +28,4 @@ if (-not (Test-Path $venvPython)) {
     (Join-Path $root "main.py")
 
 Copy-Item (Join-Path $root "mcp_servers.json") (Join-Path $root "..\dist\agent-backend\mcp_servers.json") -Force
+Copy-Item (Join-Path $root ".env") (Join-Path $root "..\dist\agent-backend\.env") -Force
