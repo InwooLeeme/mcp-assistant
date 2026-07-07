@@ -12,3 +12,8 @@ client/AGENTS.md
 # dist/build 출력 (Python 백엔드 패키징 산출물)
 /dist/
 /build/
+
+# Tauri
+/node_modules/
+/src-tauri/target/
+/src-tauri/gen/
