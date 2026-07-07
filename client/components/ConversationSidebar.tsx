@@ -5,6 +5,7 @@ import type { Conversation } from "@/lib/types";
 type ConversationSidebarProps = {
   conversations: Conversation[];
   activeId: string | null;
+  open: boolean;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   onNew: () => void;
@@ -13,6 +14,7 @@ type ConversationSidebarProps = {
 export function ConversationSidebar({
   conversations,
   activeId,
+  open,
   onSelect,
   onDelete,
   onNew,
@@ -20,7 +22,11 @@ export function ConversationSidebar({
   const sorted = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
+    <aside
+      className={`flex shrink-0 flex-col overflow-hidden bg-surface transition-[width] duration-300 ease-in-out ${
+        open ? "w-64 border-r border-border" : "w-0 border-r-0"
+      }`}
+    >
       <div className="p-3">
         <button
           type="button"

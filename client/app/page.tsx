@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AddServerModal } from "@/components/AddServerModal";
 import { CommandForm } from "@/components/CommandForm";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
@@ -28,6 +28,16 @@ export default function Home() {
   } = useConversations();
   const [showAddServer, setShowAddServer] = useState(false);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("mcp-assistant:sidebarOpen");
+    if (stored !== null) setSidebarOpen(stored === "true");
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("mcp-assistant:sidebarOpen", String(sidebarOpen));
+  }, [sidebarOpen]);
 
   const turns = activeConversation?.turns ?? [];
 
@@ -59,12 +69,21 @@ export default function Home() {
       <ConversationSidebar
         conversations={conversations}
         activeId={activeId}
+        open={sidebarOpen}
         onSelect={handleSelect}
         onDelete={deleteConversation}
         onNew={handleNew}
       />
 
-      <div className="flex flex-1 flex-col items-center px-4 py-10 sm:py-16">
+      <div className="relative flex flex-1 flex-col items-center px-4 py-10 sm:py-16">
+        <button
+          type="button"
+          onClick={() => setSidebarOpen((v) => !v)}
+          aria-label={sidebarOpen ? "사이드바 닫기" : "사이드바 열기"}
+          className="absolute left-4 top-4 rounded-lg border border-border bg-surface p-2 text-sm text-muted transition-colors hover:border-accent hover:text-accent"
+        >
+          ☰
+        </button>
         <div className="w-full max-w-xl">
           <header className="mb-6 text-center sm:mb-8">
             <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-muted">
