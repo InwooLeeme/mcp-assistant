@@ -2,13 +2,14 @@ import json
 import sys
 from pathlib import Path
 
+import config
 from autogen_ext.tools.mcp import (
     McpServerParams,
     StdioServerParams,
     StreamableHttpServerParams,
 )
 
-CONFIG_PATH = Path(__file__).resolve().parent / "mcp_servers.json"
+CONFIG_PATH = config.BASE_DIR / "mcp_servers.json"
 LOCAL_SERVER_NAME = "local"
 
 
