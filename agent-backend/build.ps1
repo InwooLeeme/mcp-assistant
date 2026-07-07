@@ -26,3 +26,5 @@ if (-not (Test-Path $venvPython)) {
     --collect-all uvicorn `
     --collect-all fastapi `
     (Join-Path $root "main.py")
+
+Copy-Item (Join-Path $root "mcp_servers.json") (Join-Path $root "..\dist\agent-backend\mcp_servers.json") -Force
