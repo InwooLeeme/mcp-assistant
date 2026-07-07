@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 
 from autogen_ext.tools.mcp import (
@@ -8,10 +9,17 @@ from autogen_ext.tools.mcp import (
 )
 
 CONFIG_PATH = Path(__file__).resolve().parent / "mcp_servers.json"
+LOCAL_SERVER_NAME = "local"
 
 
 class ConfigError(Exception):
     pass
+
+
+def _resolve_local_entry() -> dict:
+    exe_dir = Path(sys.executable).resolve().parent
+    mcp_exe = (exe_dir / ".." / "mcp-server" / "mcp-server.exe").resolve()
+    return {"command": str(mcp_exe), "args": []}
 
 
 def _read() -> dict:
@@ -19,7 +27,14 @@ def _read() -> dict:
         return {"mcpServers": {}}
     with CONFIG_PATH.open(encoding="utf-8") as f:
         data = json.load(f)
-    return data if isinstance(data, dict) else {"mcpServers": {}}
+    if not isinstance(data, dict):
+        return {"mcpServers": {}}
+
+    servers = data.get("mcpServers", {})
+    if getattr(sys, "frozen", False) and LOCAL_SERVER_NAME in servers:
+        servers[LOCAL_SERVER_NAME] = _resolve_local_entry()
+
+    return data
 
 
 def _write(data: dict) -> None:
