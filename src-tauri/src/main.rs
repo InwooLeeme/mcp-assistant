@@ -10,6 +10,7 @@ use std::process::{Child, Command};
 use std::sync::Mutex;
 
 use tauri::Manager;
+use tauri::{WebviewUrl, WebviewWindowBuilder};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::System::JobObjects::{
@@ -22,6 +23,12 @@ use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 struct BackendProcess(Mutex<Option<Child>>);
+
+fn generate_token() -> String {
+    let mut bytes = [0u8; 32];
+    getrandom::getrandom(&mut bytes).expect("토큰 생성에 실패했습니다.");
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
 
 fn to_wide(text: &str) -> Vec<u16> {
     OsStr::new(text).encode_wide().chain(once(0)).collect()
@@ -85,7 +92,7 @@ fn assign_kill_on_close_job(child: &Child) -> windows::core::Result<()> {
     Ok(())
 }
 
-fn spawn_backend(app: &tauri::AppHandle) -> Child {
+fn spawn_backend(app: &tauri::AppHandle, token: &str) -> Child {
     let resource_dir = match app.path().resource_dir() {
         Ok(dir) => dir,
         Err(err) => {
@@ -97,6 +104,7 @@ fn spawn_backend(app: &tauri::AppHandle) -> Child {
 
     let mut command = Command::new(&exe_path);
     command.creation_flags(CREATE_NO_WINDOW);
+    command.env("AGENT_TOKEN", token);
 
     if let Err(message) = apply_secret_env(&mut command) {
         show_error_dialog(&message);
@@ -127,8 +135,16 @@ fn kill_backend(child: &mut Child) {
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
-            let child = spawn_backend(&app.handle());
+            let token = generate_token();
+            let child = spawn_backend(&app.handle(), &token);
             app.manage(BackendProcess(Mutex::new(Some(child))));
+
+            let script = format!("window.__AGENT_TOKEN__ = \"{token}\";");
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+                .title("MCP Assistant")
+                .inner_size(1000.0, 700.0)
+                .initialization_script(&script)
+                .build()?;
             Ok(())
         })
         .on_window_event(|window, event| {
