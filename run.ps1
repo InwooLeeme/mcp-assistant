@@ -20,7 +20,9 @@ if (-not (Test-Path $mcpVenv)) {
 & (Join-Path $mcpVenv "Scripts\pip.exe") install -r (Join-Path $root "mcp-server\requirements.txt")
 
 # 2.5 인증 토큰 생성 (dev): 백엔드와 프론트가 공유
-$token = -join ((1..32) | ForEach-Object { "{0:x2}" -f (Get-Random -Maximum 256) })
+$tokenBytes = New-Object byte[] 32
+[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($tokenBytes)
+$token = -join ($tokenBytes | ForEach-Object { "{0:x2}" -f $_ })
 $env:AGENT_TOKEN = $token
 $envLocal = Join-Path $root "client\.env.local"
 @(
