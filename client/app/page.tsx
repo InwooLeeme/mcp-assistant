@@ -14,6 +14,24 @@ import { useConversations } from "@/hooks/useConversations";
 const AGENT_URL = process.env.NEXT_PUBLIC_AGENT_URL ?? "http://localhost:8000";
 
 const EXAMPLES = ["카카오톡 실행해 줘", "뉴스 페이지 열어줘", "카페 음악 재생해 줘"];
+const CAPABILITIES = [
+  {
+    title: "앱 실행과 종료",
+    description: "설치된 프로그램을 찾아 실행하고, 실행 중인 일반 프로그램을 종료합니다.",
+  },
+  {
+    title: "웹과 유튜브",
+    description: "https 페이지를 열고, 검색어로 유튜브 영상을 찾아 재생합니다.",
+  },
+  {
+    title: "미디어 제어",
+    description: "재생/일시정지, 다음/이전, 볼륨 조절, 음소거를 처리합니다.",
+  },
+  {
+    title: "주요 폴더 열기",
+    description: "다운로드, 문서, 바탕화면, 사진 폴더를 탐색기로 엽니다.",
+  },
+];
 
 export default function Home() {
   const { stages, error, isLoading, submit, reset } = useCommandStream(AGENT_URL);
@@ -118,6 +136,26 @@ export default function Home() {
             <ProgressLog stages={stages} />
             <ResultMessage result={null} error={error} />
           </div>
+
+          <section className="mt-4 rounded-2xl border border-border bg-surface p-4 shadow-sm">
+            <div className="mb-3">
+              <h2 className="text-sm font-semibold text-foreground">현재 가능한 작업</h2>
+              <p className="mt-1 text-xs text-muted">
+                기본 로컬 MCP 서버 기준입니다. MCP 서버를 추가하면 가능한 범위가 확장됩니다.
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {CAPABILITIES.map((capability) => (
+                <div key={capability.title} className="rounded-xl border border-border bg-background px-3 py-2.5">
+                  <p className="text-xs font-medium text-foreground">{capability.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">{capability.description}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs leading-5 text-muted">
+              시스템 핵심 프로세스 종료와 로컬/사설 주소 원격 MCP 등록은 보안상 제한됩니다.
+            </p>
+          </section>
 
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             {EXAMPLES.map((example) => (
