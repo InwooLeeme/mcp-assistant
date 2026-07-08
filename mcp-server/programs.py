@@ -58,7 +58,7 @@ def launch_program(program_name: str) -> dict:
     target = index.get(key)
     matched = program_name if target else None
     if target is None:
-        candidates = get_close_matches(key, list(index.keys()), n=1, cutoff=0.5)
+        candidates = get_close_matches(key, list(index.keys()), n=1, cutoff=0.7)
         if candidates:
             matched = candidates[0]
             target = index[matched]

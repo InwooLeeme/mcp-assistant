@@ -1,5 +1,22 @@
 import subprocess
+import logging
 from difflib import get_close_matches
+
+logger = logging.getLogger(__name__)
+
+_PROTECTED: frozenset[str] = frozenset(
+    {
+        "explorer",
+        "winlogon",
+        "csrss",
+        "services",
+        "lsass",
+        "smss",
+        "wininit",
+        "system",
+        "svchost",
+    }
+)
 
 _ALIASES: dict[str, str] = {
     "카카오톡": "kakaotalk",
@@ -31,30 +48,38 @@ def close_program(program_name: str) -> dict:
     key = _ALIASES.get(program_name.strip(), program_name.strip()).lower()
     stems = _running_image_stems()
 
-    image = stems.get(key)
-    if image is None:
-        candidates = get_close_matches(key, list(stems.keys()), n=1, cutoff=0.5)
+    matched_stem = key if key in stems else None
+    if matched_stem is None:
+        candidates = get_close_matches(key, list(stems.keys()), n=1, cutoff=0.7)
         if candidates:
-            image = stems[candidates[0]]
+            matched_stem = candidates[0]
 
-    if image is None:
-        running = ", ".join(sorted(stems.keys())[:10])
+    if matched_stem is None:
         return {
             "status": "fail",
             "matched": "",
-            "message": f"'{program_name}'에 해당하는 실행 중인 프로그램을 찾지 못했습니다. 실행 중: {running}",
+            "message": f"'{program_name}'에 해당하는 실행 중인 프로그램을 찾지 못했습니다.",
         }
 
+    if matched_stem in _PROTECTED:
+        return {
+            "status": "fail",
+            "matched": matched_stem,
+            "message": f"'{matched_stem}'은(는) 시스템 핵심 프로세스라 종료할 수 없습니다.",
+        }
+
+    image = stems[matched_stem]
     result = subprocess.run(
         ["taskkill", "/IM", image],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
+        logger.warning("taskkill 실패(%s): %s", image, result.stderr.strip())
         return {
             "status": "fail",
             "matched": image,
-            "message": f"'{image}' 종료에 실패했습니다: {result.stderr.strip()}",
+            "message": f"'{image}' 종료에 실패했습니다.",
         }
     return {
         "status": "success",
