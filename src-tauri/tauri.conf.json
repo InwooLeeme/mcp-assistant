@@ -10,13 +10,7 @@
     "beforeBuildCommand": "npm run build --prefix client"
   },
   "app": {
-    "windows": [
-      {
-        "title": "MCP Assistant",
-        "width": 1000,
-        "height": 700
-      }
-    ]
+    "windows": []
   },
   "bundle": {
     "active": true,
