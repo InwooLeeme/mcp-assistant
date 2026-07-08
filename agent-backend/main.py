@@ -88,8 +88,9 @@ async def list_mcp_servers() -> dict:
                 tools = await wb.list_tools()
             item["connected"] = True
             item["tool_count"] = len(tools)
-        except Exception as exc:
-            item["error"] = str(exc)
+        except Exception:
+            logger.warning("MCP 서버 '%s' 상태 확인 실패", name, exc_info=True)
+            item["error"] = "연결에 실패했습니다."
         servers.append(item)
     return {"servers": servers}
 
