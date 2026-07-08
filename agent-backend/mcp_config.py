@@ -22,8 +22,8 @@ class ConfigError(Exception):
 
 def _validate_remote_url(url: str) -> None:
     parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        raise ConfigError("url은 http 또는 https만 허용됩니다.")
+    if parsed.scheme != "https":
+        raise ConfigError("url은 https만 허용됩니다.")
     host = parsed.hostname
     if not host:
         raise ConfigError("url에서 호스트를 확인할 수 없습니다.")
