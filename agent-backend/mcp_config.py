@@ -13,7 +13,7 @@ from autogen_ext.tools.mcp import (
 )
 
 CONFIG_PATH = config.BASE_DIR / "mcp_servers.json"
-LOCAL_SERVER_NAME = "local"
+BUNDLED_SERVER_KEY = "bundled"
 
 
 class ConfigError(Exception):
@@ -37,10 +37,28 @@ def _validate_remote_url(url: str) -> None:
             raise ConfigError("사설/로컬 주소를 가리키는 url은 등록할 수 없습니다.")
 
 
-def _resolve_local_entry() -> dict:
+def _resolve_bundled_entry() -> dict:
+    if not getattr(sys, "frozen", False):
+        server_path = (config.BASE_DIR.parent / "mcp-server" / "server.py").resolve()
+        venv_python = (
+            config.BASE_DIR.parent
+            / "mcp-server"
+            / ".venv"
+            / "Scripts"
+            / "python.exe"
+        ).resolve()
+        command = str(venv_python) if venv_python.exists() else "python"
+        return {"command": command, "args": [str(server_path)]}
+
     exe_dir = Path(sys.executable).resolve().parent
     mcp_exe = (exe_dir / ".." / "mcp-server" / "mcp-server.exe").resolve()
     return {"command": str(mcp_exe), "args": []}
+
+
+def _resolve_entry(entry: dict) -> dict:
+    if entry.get(BUNDLED_SERVER_KEY) is True:
+        return _resolve_bundled_entry()
+    return entry
 
 
 def _read() -> dict:
@@ -51,10 +69,6 @@ def _read() -> dict:
     if not isinstance(data, dict):
         return {"mcpServers": {}}
 
-    servers = data.get("mcpServers", {})
-    if getattr(sys, "frozen", False) and LOCAL_SERVER_NAME in servers:
-        servers[LOCAL_SERVER_NAME] = _resolve_local_entry()
-
     return data
 
 
@@ -64,10 +78,15 @@ def _write(data: dict) -> None:
 
 
 def list_servers() -> dict[str, dict]:
-    return _read().get("mcpServers", {})
+    servers = _read().get("mcpServers", {})
+    return {
+        name: _resolve_entry(entry) if isinstance(entry, dict) else entry
+        for name, entry in servers.items()
+    }
 
 
 def to_server_params(entry: dict) -> McpServerParams:
+    entry = _resolve_entry(entry)
     if "url" in entry:
         return StreamableHttpServerParams(url=entry["url"], headers=entry.get("headers"))
     if "command" in entry:

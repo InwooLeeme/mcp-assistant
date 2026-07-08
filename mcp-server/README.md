@@ -34,7 +34,7 @@ python -m venv .venv
 .venv\Scripts\python server.py
 ```
 
-보통은 직접 실행할 일이 없고, `agent-backend/mcp_servers.json`에 `local` 항목으로 이 서버의 `command`/`args`(python.exe 경로, `server.py` 경로)가 등록되어 있어서 Agent 백엔드가 요청마다 알아서 서브프로세스로 띄웁니다.
+보통은 직접 실행할 일이 없고, `agent-backend/mcp_servers.json`의 `local` 항목은 `{ "bundled": true }`로 선언됩니다. Agent 백엔드는 개발 환경에서는 저장소의 `mcp-server/server.py`를, 설치형 빌드에서는 번들된 `mcp-server.exe`를 런타임에 찾아 서브프로세스로 띄웁니다.
 
 ## 참고
 
