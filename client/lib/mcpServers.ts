@@ -1,3 +1,5 @@
+import { agentHeaders } from "./agentClient";
+
 export type McpServer = {
   name: string;
   transport: "stdio" | "url";
@@ -10,11 +12,12 @@ export type NewMcpServer = {
   name: string;
   command?: string;
   args?: string[];
+  env?: Record<string, string>;
   url?: string;
 };
 
 export async function fetchServers(baseUrl: string): Promise<McpServer[]> {
-  const res = await fetch(`${baseUrl}/mcp-servers`);
+  const res = await fetch(`${baseUrl}/mcp-servers`, { headers: agentHeaders() });
   if (!res.ok) throw new Error("서버 목록을 불러오지 못했습니다.");
   const data = (await res.json()) as { servers: McpServer[] };
   return data.servers;
@@ -23,7 +26,7 @@ export async function fetchServers(baseUrl: string): Promise<McpServer[]> {
 export async function createServer(baseUrl: string, body: NewMcpServer): Promise<void> {
   const res = await fetch(`${baseUrl}/mcp-servers`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: agentHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -35,6 +38,7 @@ export async function createServer(baseUrl: string, body: NewMcpServer): Promise
 export async function deleteServer(baseUrl: string, name: string): Promise<void> {
   const res = await fetch(`${baseUrl}/mcp-servers/${encodeURIComponent(name)}`, {
     method: "DELETE",
+    headers: agentHeaders(),
   });
   if (!res.ok) throw new Error("서버 삭제에 실패했습니다.");
 }

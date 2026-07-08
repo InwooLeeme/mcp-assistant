@@ -1,4 +1,5 @@
 import type { CommandEvent, HistoryTurn } from "./types";
+import { agentHeaders } from "./agentClient";
 
 export async function* streamCommand(
   text: string,
@@ -8,7 +9,7 @@ export async function* streamCommand(
 ): AsyncGenerator<CommandEvent, void, void> {
   const response = await fetch(`${baseUrl}/command`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: agentHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ text, history }),
     signal,
   });
