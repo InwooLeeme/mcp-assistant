@@ -1,9 +1,18 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { createServer } from "@/lib/mcpServers";
+import { createServer, type NewMcpServer } from "@/lib/mcpServers";
 
 const AGENT_URL = process.env.NEXT_PUBLIC_AGENT_URL ?? "http://localhost:8000";
+
+const PLACEHOLDER = `{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\\\Users"]
+    }
+  }
+}`;
 
 type AddServerModalProps = {
   open: boolean;
@@ -16,12 +25,23 @@ function toMessage(err: unknown): string {
   return "알 수 없는 오류가 발생했습니다.";
 }
 
+function parseServers(raw: string): NewMcpServer[] {
+  const data = JSON.parse(raw) as Record<string, unknown>;
+  const container = data?.mcpServers;
+  if (container && typeof container === "object") {
+    return Object.entries(container as Record<string, NewMcpServer>).map(
+      ([name, entry]) => ({ ...entry, name })
+    );
+  }
+  if (typeof data?.name === "string") {
+    return [data as unknown as NewMcpServer];
+  }
+  throw new Error('mcpServers 객체 또는 name을 가진 단일 서버 JSON을 입력하세요.');
+}
+
 export function AddServerModal({ open, onClose }: AddServerModalProps) {
-  const [mode, setMode] = useState<"stdio" | "url">("stdio");
-  const [name, setName] = useState("");
-  const [command, setCommand] = useState("");
-  const [args, setArgs] = useState("");
-  const [url, setUrl] = useState("");
+  const [json, setJson] = useState("");
+  const [pending, setPending] = useState<NewMcpServer[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -38,10 +58,8 @@ export function AddServerModal({ open, onClose }: AddServerModalProps) {
   if (!open) return null;
 
   const reset = () => {
-    setName("");
-    setCommand("");
-    setArgs("");
-    setUrl("");
+    setJson("");
+    setPending(null);
     setError(null);
     setSuccess(false);
   };
@@ -51,21 +69,12 @@ export function AddServerModal({ open, onClose }: AddServerModalProps) {
     onClose();
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!name.trim() || submitting) return;
-
+  const commit = async (servers: NewMcpServer[]) => {
     setSubmitting(true);
     setError(null);
     try {
-      if (mode === "url") {
-        await createServer(AGENT_URL, { name: name.trim(), url: url.trim() });
-      } else {
-        await createServer(AGENT_URL, {
-          name: name.trim(),
-          command: command.trim(),
-          args: args.trim() ? args.trim().split(/\s+/) : [],
-        });
+      for (const server of servers) {
+        await createServer(AGENT_URL, server);
       }
       setSuccess(true);
       setTimeout(() => {
@@ -78,6 +87,35 @@ export function AddServerModal({ open, onClose }: AddServerModalProps) {
       setSubmitting(false);
     }
   };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (submitting) return;
+
+    let servers: NewMcpServer[];
+    try {
+      servers = parseServers(json);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "JSON 형식이 올바르지 않습니다.");
+      return;
+    }
+    if (servers.length === 0) {
+      setError("추가할 서버가 없습니다.");
+      return;
+    }
+
+    const commandServers = servers.filter((s) => s.command);
+    if (commandServers.length > 0) {
+      setError(null);
+      setPending(servers);
+      return;
+    }
+    await commit(servers);
+  };
+
+  const commandLines = (pending ?? [])
+    .filter((s) => s.command)
+    .map((s) => `${s.name}: ${s.command} ${(s.args ?? []).join(" ")}`.trim());
 
   return (
     <div
@@ -111,63 +149,55 @@ export function AddServerModal({ open, onClose }: AddServerModalProps) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="flex gap-2 text-sm">
-            <button
-              type="button"
-              onClick={() => setMode("stdio")}
-              className={`rounded-full px-3 py-1 ${mode === "stdio" ? "bg-accent text-accent-foreground" : "text-muted"}`}
-            >
-              로컬(stdio)
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("url")}
-              className={`rounded-full px-3 py-1 ${mode === "url" ? "bg-accent text-accent-foreground" : "text-muted"}`}
-            >
-              원격(url)
-            </button>
+        {pending ? (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger">
+              <p className="font-medium">이 서버는 로컬에서 명령을 실행합니다.</p>
+              <ul className="mt-2 list-disc space-y-1 pl-4">
+                {commandLines.map((line) => (
+                  <li key={line} className="break-all font-mono text-xs">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2">등록을 허용하시겠어요?</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPending(null)}
+                className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm text-muted hover:border-accent hover:text-accent"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => commit(pending)}
+                className="flex-1 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
+              >
+                {submitting ? "추가 중..." : "허용하고 추가"}
+              </button>
+            </div>
           </div>
-
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="서버 이름"
-            className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-accent"
-          />
-
-          {mode === "stdio" ? (
-            <>
-              <input
-                value={command}
-                onChange={(e) => setCommand(e.target.value)}
-                placeholder="실행 명령 (예: npx)"
-                className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-accent"
-              />
-              <input
-                value={args}
-                onChange={(e) => setArgs(e.target.value)}
-                placeholder="인자 (공백 구분, 예: -y @modelcontextprotocol/server-filesystem C:\\Users)"
-                className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-accent"
-              />
-            </>
-          ) : (
-            <input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="서버 URL (https://...)"
-              className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-accent"
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <textarea
+              value={json}
+              onChange={(e) => setJson(e.target.value)}
+              placeholder={PLACEHOLDER}
+              rows={10}
+              className="w-full rounded-xl border border-border bg-background px-4 py-2.5 font-mono text-xs outline-none focus:border-accent"
             />
-          )}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitting ? "추가 중..." : "서버 추가"}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting ? "추가 중..." : "서버 추가"}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
