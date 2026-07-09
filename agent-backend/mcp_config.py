@@ -1,5 +1,7 @@
 import ipaddress
 import json
+import os
+import shutil
 import socket
 import sys
 from pathlib import Path
@@ -12,12 +14,40 @@ from autogen_ext.tools.mcp import (
     StreamableHttpServerParams,
 )
 
-CONFIG_PATH = config.BASE_DIR / "mcp_servers.json"
 BUNDLED_SERVER_KEY = "bundled"
 
 
 class ConfigError(Exception):
     pass
+
+
+def _bundled_config_path() -> Path:
+    return config.BASE_DIR / "mcp_servers.json"
+
+
+def _config_path() -> Path:
+    if not getattr(sys, "frozen", False):
+        return _bundled_config_path()
+    appdata = os.getenv("APPDATA")
+    if not appdata:
+        raise ConfigError("APPDATA 환경변수를 찾을 수 없습니다.")
+    return Path(appdata) / "mcp-assistant" / "mcp_servers.json"
+
+
+def _ensure_config_path() -> Path:
+    path = _config_path()
+    if not getattr(sys, "frozen", False) or path.exists():
+        return path
+
+    bundled_path = _bundled_config_path()
+    if not bundled_path.is_file():
+        raise ConfigError("번들 MCP 설정 파일을 찾을 수 없습니다.")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(bundled_path, path)
+    except OSError as exc:
+        raise ConfigError(f"MCP 설정 파일을 초기화할 수 없습니다: {exc}") from exc
+    return path
 
 
 def _validate_remote_url(url: str) -> None:
@@ -62,9 +92,10 @@ def _resolve_entry(entry: dict) -> dict:
 
 
 def _read() -> dict:
-    if not CONFIG_PATH.exists():
+    path = _ensure_config_path()
+    if not path.exists():
         return {"mcpServers": {}}
-    with CONFIG_PATH.open(encoding="utf-8") as f:
+    with path.open(encoding="utf-8") as f:
         data = json.load(f)
     if not isinstance(data, dict):
         return {"mcpServers": {}}
@@ -73,7 +104,8 @@ def _read() -> dict:
 
 
 def _write(data: dict) -> None:
-    with CONFIG_PATH.open("w", encoding="utf-8") as f:
+    path = _ensure_config_path()
+    with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 

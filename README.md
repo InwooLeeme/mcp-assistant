@@ -188,6 +188,8 @@ Tauri 설치 파일에는 다음 리소스만 포함합니다.
 
 기본 MCP 서버는 `agent-backend/mcp_servers.json`의 `local` 항목입니다. 이 항목은 `{ "bundled": true }`로 선언하고, 개발 환경에서는 저장소의 `mcp-server/server.py`, 설치형 빌드에서는 번들된 `mcp-server.exe`를 가리키도록 런타임에 보정됩니다.
 
+개발 환경의 MCP 서버 목록은 `agent-backend/mcp_servers.json`에 저장됩니다. 설치형 앱은 `%APPDATA%\mcp-assistant\mcp_servers.json`을 사용합니다. 설치형 앱에서 사용자 설정 파일이 없으면 번들된 기본 설정을 최초 1회 복사하며, 이후 앱 업데이트에서는 기존 사용자 설정을 덮어쓰지 않습니다.
+
 백엔드는 MCP 서버 목록 관리를 위해 다음 API를 제공합니다.
 
 - `GET /mcp-servers`: 등록된 MCP 서버 목록 조회

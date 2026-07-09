@@ -17,7 +17,7 @@
 - `pipeline.py` — planner를 실행해 Plan을 얻고, `_execute_plan`이 그 Plan을 순차 집행하며 SSE 이벤트로 변환하는 오케스트레이션 로직. `HistoryTurn` 모델과 `_build_task`가 클라이언트가 보낸 이전 대화 턴을 "[이전 대화]" 프리앰블로 조립하는 것도 여기서 담당합니다.
 - `agents.py` — planner 에이전트 정의, 프로그램 별칭 표(`PROGRAM_ALIASES`), URL 카테고리 힌트(`URL_CATEGORY_HINTS`), `Plan` 스키마.
 - `llm_client.py` — Gemini를 OpenAI 호환 API로 부르는 `OpenAIChatCompletionClient` 생성.
-- `mcp_config.py` — `mcp_servers.json` 로딩·저장 및 서버 목록 조회·추가·삭제(`list_servers`, `add_server`, `remove_server`, `to_server_params`, `load_server_params`).
+- `mcp_config.py` — 개발 환경의 `mcp_servers.json`과 설치 환경의 사용자별 설정 파일을 로딩·저장하고 서버 목록 조회·추가·삭제를 처리합니다.
 - `sse.py` — SSE 이벤트 딕셔너리 생성 및 `data: ...\n\n` 포맷팅.
 - `config.py` — `.env` 로딩 및 환경변수 읽기.
 
@@ -33,7 +33,9 @@ CORS_ALLOW_ORIGIN=http://localhost:3000
 
 LLM 에이전트는 planner 하나뿐이며, `PLANNER_MODEL`로 모델을 지정할 수 있고 지정하지 않으면 `GEMINI_MODEL`을 씁니다.
 
-MCP 서버 목록은 `mcp_servers.json`에서 관리하며, 파이프라인이 요청마다 모든 서버에 연결해 도구를 합쳐 planner에 전달합니다. `GET/POST/DELETE /mcp-servers`로 목록 조회·추가·삭제할 수 있고, 한 서버가 연결에 실패해도 나머지로 계속 동작합니다.
+개발 환경의 MCP 서버 목록은 `agent-backend/mcp_servers.json`에서 관리합니다. PyInstaller 설치 환경에서는 `%APPDATA%\mcp-assistant\mcp_servers.json`을 사용합니다. 사용자 설정 파일이 없으면 실행 파일 옆의 번들 설정을 최초 1회 복사하고, 이미 존재하는 사용자 설정은 덮어쓰지 않습니다.
+
+파이프라인은 등록된 모든 서버에 연결해 도구를 합쳐 planner에 전달합니다. `GET/POST/DELETE /mcp-servers`로 목록 조회·추가·삭제할 수 있고, 한 서버가 연결에 실패해도 나머지로 계속 동작합니다.
 
 `GEMINI_MODEL`은 모델 등급에 따라 지시 이행 능력 차이가 꽤 큽니다. 가벼운 모델(`gemini-2.5-flash-lite` 등)은 `PROGRAM_ALIASES` 같은 프롬프트 안의 매핑 표를 놓치고 원문을 그대로 도구에 넘기는 경우가 있었습니다. 별칭 매칭이 잘 안 될 때는 429(할당량 초과) 에러인지, 아니면 응답 자체는 정상인데 모델이 지시를 놓친 것인지 구분해서 봐야 합니다.
 
