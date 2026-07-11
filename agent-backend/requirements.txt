@@ -1,7 +1,7 @@
-fastapi
-uvicorn[standard]
-python-dotenv
-autogen-agentchat
-autogen-ext[openai,mcp]
-mcp
-pydantic
+fastapi==0.138.2
+uvicorn[standard]==0.49.0
+python-dotenv==1.2.2
+autogen-agentchat==0.7.5
+autogen-ext[openai,mcp]==0.7.5
+mcp==1.28.1
+pydantic==2.13.4
