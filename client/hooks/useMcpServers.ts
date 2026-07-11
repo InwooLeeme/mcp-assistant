@@ -31,8 +31,27 @@ export function useMcpServers(baseUrl: string) {
   }, [baseUrl]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    let active = true;
+
+    async function load() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const nextServers = await fetchServers(baseUrl);
+        if (active) setServers(nextServers);
+      } catch (err) {
+        if (active) setError(toMessage(err));
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    }
+
+    void load();
+
+    return () => {
+      active = false;
+    };
+  }, [baseUrl]);
 
   const add = useCallback(
     async (body: NewMcpServer) => {
