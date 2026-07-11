@@ -3,6 +3,7 @@ import { agentHeaders } from "./agentClient";
 export type McpServer = {
   name: string;
   transport: "stdio" | "url";
+  checked: boolean;
   connected: boolean;
   tool_count: number;
   error: string | null;
@@ -41,4 +42,16 @@ export async function deleteServer(baseUrl: string, name: string): Promise<void>
     headers: agentHeaders(),
   });
   if (!res.ok) throw new Error("서버 삭제에 실패했습니다.");
+}
+
+export async function testServer(baseUrl: string, name: string): Promise<McpServer> {
+  const res = await fetch(`${baseUrl}/mcp-servers/${encodeURIComponent(name)}/test`, {
+    method: "POST",
+    headers: agentHeaders(),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(detail?.detail ?? "서버 상태 확인에 실패했습니다.");
+  }
+  return (await res.json()) as McpServer;
 }

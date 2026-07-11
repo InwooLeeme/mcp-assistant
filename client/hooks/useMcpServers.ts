@@ -3,6 +3,7 @@ import {
   createServer,
   deleteServer,
   fetchServers,
+  testServer,
   type McpServer,
   type NewMcpServer,
 } from "@/lib/mcpServers";
@@ -17,6 +18,7 @@ export function useMcpServers(baseUrl: string) {
   const [servers, setServers] = useState<McpServer[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [testingName, setTestingName] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
@@ -79,5 +81,23 @@ export function useMcpServers(baseUrl: string) {
     [baseUrl, refresh]
   );
 
-  return { servers, error, isLoading, refresh, add, remove };
+  const testConnection = useCallback(
+    async (name: string) => {
+      setError(null);
+      setTestingName(name);
+      try {
+        const tested = await testServer(baseUrl, name);
+        setServers((prev) =>
+          prev.map((server) => (server.name === name ? tested : server))
+        );
+      } catch (err) {
+        setError(toMessage(err));
+      } finally {
+        setTestingName(null);
+      }
+    },
+    [baseUrl]
+  );
+
+  return { servers, error, isLoading, testingName, refresh, add, remove, testConnection };
 }
