@@ -71,28 +71,48 @@ def _entry_transport(entry: dict) -> str:
     return "url" if "url" in entry else "stdio"
 
 
+def _server_item(name: str, entry: dict, checked: bool = False) -> dict:
+    return {
+        "name": name,
+        "transport": _entry_transport(entry),
+        "checked": checked,
+        "connected": False,
+        "tool_count": 0,
+        "error": None,
+    }
+
+
+async def _check_mcp_server(name: str, entry: dict) -> dict:
+    item = _server_item(name, entry, checked=True)
+    try:
+        params = mcp_config.to_server_params(entry)
+        async with McpWorkbench(server_params=params) as wb:
+            tools = await wb.list_tools()
+        item["connected"] = True
+        item["tool_count"] = len(tools)
+    except Exception:
+        logger.warning("MCP 서버 '%s' 상태 확인 실패", name, exc_info=True)
+        item["error"] = "연결에 실패했습니다."
+    return item
+
+
 @app.get("/mcp-servers", dependencies=[Depends(require_auth)])
 async def list_mcp_servers() -> dict:
-    servers = []
-    for name, entry in mcp_config.list_servers().items():
-        item = {
-            "name": name,
-            "transport": _entry_transport(entry),
-            "connected": False,
-            "tool_count": 0,
-            "error": None,
-        }
-        try:
-            params = mcp_config.to_server_params(entry)
-            async with McpWorkbench(server_params=params) as wb:
-                tools = await wb.list_tools()
-            item["connected"] = True
-            item["tool_count"] = len(tools)
-        except Exception:
-            logger.warning("MCP 서버 '%s' 상태 확인 실패", name, exc_info=True)
-            item["error"] = "연결에 실패했습니다."
-        servers.append(item)
-    return {"servers": servers}
+    return {
+        "servers": [
+            _server_item(name, entry)
+            for name, entry in mcp_config.list_servers().items()
+        ]
+    }
+
+
+@app.post("/mcp-servers/{name}/test", dependencies=[Depends(require_auth)])
+async def test_mcp_server(name: str) -> dict:
+    servers = mcp_config.list_servers()
+    entry = servers.get(name)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="서버를 찾을 수 없습니다.")
+    return await _check_mcp_server(name, entry)
 
 
 @app.post("/mcp-servers", dependencies=[Depends(require_auth)])

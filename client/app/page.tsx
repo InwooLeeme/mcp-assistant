@@ -49,8 +49,17 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem("mcp-assistant:sidebarOpen");
-    if (stored !== null) setSidebarOpen(stored === "true");
+    let active = true;
+
+    queueMicrotask(() => {
+      if (!active) return;
+      const stored = window.localStorage.getItem("mcp-assistant:sidebarOpen");
+      if (stored !== null) setSidebarOpen(stored === "true");
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
