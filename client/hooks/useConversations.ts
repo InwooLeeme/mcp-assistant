@@ -22,16 +22,26 @@ export function useConversations() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const loaded = loadConversations();
-    if (loaded.length > 0) {
-      setConversations(loaded);
-      setActiveId(loaded[0].id);
-    } else {
-      const fresh = createConversation();
-      setConversations([fresh]);
-      setActiveId(fresh.id);
-    }
-    setHydrated(true);
+    let active = true;
+
+    queueMicrotask(() => {
+      if (!active) return;
+
+      const loaded = loadConversations();
+      if (loaded.length > 0) {
+        setConversations(loaded);
+        setActiveId(loaded[0].id);
+      } else {
+        const fresh = createConversation();
+        setConversations([fresh]);
+        setActiveId(fresh.id);
+      }
+      setHydrated(true);
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
