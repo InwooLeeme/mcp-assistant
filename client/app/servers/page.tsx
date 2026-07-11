@@ -7,7 +7,8 @@ import { useMcpServers } from "@/hooks/useMcpServers";
 const AGENT_URL = process.env.NEXT_PUBLIC_AGENT_URL ?? "http://localhost:8000";
 
 export default function ServersPage() {
-  const { servers, error, isLoading, add, remove } = useMcpServers(AGENT_URL);
+  const { servers, error, isLoading, testingName, add, remove, testConnection } =
+    useMcpServers(AGENT_URL);
   const [mode, setMode] = useState<"stdio" | "url">("stdio");
   const [name, setName] = useState("");
   const [command, setCommand] = useState("");
@@ -48,28 +49,43 @@ export default function ServersPage() {
       )}
 
       <ul className="mb-8 space-y-2">
-        {servers.map((server) => (
-          <li
-            key={server.name}
-            className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3"
-          >
-            <div>
-              <p className="font-medium text-foreground">{server.name}</p>
-              <p className="text-xs text-muted">
-                {server.connected
-                  ? `연결됨 · 도구 ${server.tool_count}개`
-                  : `실패 · ${server.error ?? "연결 불가"}`}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => remove(server.name)}
-              className="text-xs text-muted transition-colors hover:text-danger"
+        {servers.map((server) => {
+          const isTesting = testingName === server.name;
+          const statusText = !server.checked
+            ? "상태 확인 전"
+            : server.connected
+              ? `연결됨 · 도구 ${server.tool_count}개`
+              : `실패 · ${server.error ?? "연결 불가"}`;
+
+          return (
+            <li
+              key={server.name}
+              className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3"
             >
-              삭제
-            </button>
-          </li>
-        ))}
+              <div>
+                <p className="font-medium text-foreground">{server.name}</p>
+                <p className="text-xs text-muted">{statusText}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => testConnection(server.name)}
+                  disabled={isTesting}
+                  className="text-xs text-muted transition-colors hover:text-accent disabled:opacity-50"
+                >
+                  {isTesting ? "확인 중" : "상태 확인"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => remove(server.name)}
+                  className="text-xs text-muted transition-colors hover:text-danger"
+                >
+                  삭제
+                </button>
+              </div>
+            </li>
+          );
+        })}
         {!isLoading && servers.length === 0 && (
           <li className="text-sm text-muted">등록된 서버가 없습니다.</li>
         )}
