@@ -96,6 +96,19 @@ async def _check_mcp_server(name: str, entry: dict) -> dict:
     return item
 
 
+def _server_entry_from_request(body: ServerCreateRequest) -> dict:
+    if body.url:
+        return {"url": body.url}
+
+    entry: dict = {}
+    if body.command:
+        entry["command"] = body.command
+        entry["args"] = body.args
+        if body.env:
+            entry["env"] = body.env
+    return entry
+
+
 @app.get("/mcp-servers", dependencies=[Depends(require_auth)])
 async def list_mcp_servers() -> dict:
     return {
@@ -117,14 +130,7 @@ async def test_mcp_server(name: str) -> dict:
 
 @app.post("/mcp-servers", dependencies=[Depends(require_auth)])
 async def add_mcp_server(body: ServerCreateRequest) -> dict:
-    entry: dict = {}
-    if body.url:
-        entry["url"] = body.url
-    elif body.command:
-        entry["command"] = body.command
-        entry["args"] = body.args
-        if body.env:
-            entry["env"] = body.env
+    entry = _server_entry_from_request(body)
     try:
         mcp_config.add_server(body.name, entry)
     except mcp_config.ConfigError as exc:

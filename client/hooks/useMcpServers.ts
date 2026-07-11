@@ -20,40 +20,34 @@ export function useMcpServers(baseUrl: string) {
   const [isLoading, setIsLoading] = useState(false);
   const [testingName, setTestingName] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  const loadServers = useCallback(async (isActive: () => boolean = () => true) => {
     setIsLoading(true);
     setError(null);
     try {
-      setServers(await fetchServers(baseUrl));
+      const nextServers = await fetchServers(baseUrl);
+      if (isActive()) setServers(nextServers);
     } catch (err) {
-      setError(toMessage(err));
+      if (isActive()) setError(toMessage(err));
     } finally {
-      setIsLoading(false);
+      if (isActive()) setIsLoading(false);
     }
   }, [baseUrl]);
+
+  const refresh = useCallback(async () => {
+    await loadServers();
+  }, [loadServers]);
 
   useEffect(() => {
     let active = true;
 
-    async function load() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const nextServers = await fetchServers(baseUrl);
-        if (active) setServers(nextServers);
-      } catch (err) {
-        if (active) setError(toMessage(err));
-      } finally {
-        if (active) setIsLoading(false);
-      }
-    }
-
-    void load();
+    queueMicrotask(() => {
+      if (active) void loadServers(() => active);
+    });
 
     return () => {
       active = false;
     };
-  }, [baseUrl]);
+  }, [loadServers]);
 
   const add = useCallback(
     async (body: NewMcpServer) => {

@@ -17,6 +17,11 @@ export type NewMcpServer = {
   url?: string;
 };
 
+async function errorDetail(res: Response, fallback: string): Promise<string> {
+  const detail = await res.json().catch(() => null);
+  return detail?.detail ?? fallback;
+}
+
 export async function fetchServers(baseUrl: string): Promise<McpServer[]> {
   const res = await fetch(`${baseUrl}/mcp-servers`, { headers: agentHeaders() });
   if (!res.ok) throw new Error("서버 목록을 불러오지 못했습니다.");
@@ -31,8 +36,7 @@ export async function createServer(baseUrl: string, body: NewMcpServer): Promise
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const detail = await res.json().catch(() => null);
-    throw new Error(detail?.detail ?? "서버 추가에 실패했습니다.");
+    throw new Error(await errorDetail(res, "서버 추가에 실패했습니다."));
   }
 }
 
@@ -50,8 +54,7 @@ export async function testServer(baseUrl: string, name: string): Promise<McpServ
     headers: agentHeaders(),
   });
   if (!res.ok) {
-    const detail = await res.json().catch(() => null);
-    throw new Error(detail?.detail ?? "서버 상태 확인에 실패했습니다.");
+    throw new Error(await errorDetail(res, "서버 상태 확인에 실패했습니다."));
   }
   return (await res.json()) as McpServer;
 }
